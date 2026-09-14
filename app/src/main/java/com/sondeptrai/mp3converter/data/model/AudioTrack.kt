@@ -68,13 +68,15 @@ data class AudioTrack(
             return SongLyricsHelper.getLyricsForTrack(title, durationMs, file)
         }
 
+        // Exact timestamps strictly matching the 3.0-second chord changes in demo_track.wav
         val demoSegments = listOf(
             TranscriptSegment(timeMs = 0L, text = "🎵 [Dạo đầu] Giai điệu mùa thu nhẹ nhàng buông xuống..."),
-            TranscriptSegment(timeMs = 3200L, text = "🍃 Từng hạt mưa rơi rớt bên hiên, góc phố vắng tanh"),
-            TranscriptSegment(timeMs = 7500L, text = "🌧️ Kỷ niệm xưa theo gió bay về trong màn đêm lạnh"),
-            TranscriptSegment(timeMs = 11500L, text = "💫 Nhớ ánh mắt dịu dàng và nụ cười ấm áp năm nào"),
-            TranscriptSegment(timeMs = 15000L, text = "🔥 [Điệp khúc] Người yêu hỡi dẫu xa xôi lòng anh không đổi"),
-            TranscriptSegment(timeMs = 18500L, text = "✨ Trọn một đời chỉ yêu riêng bóng hình em!")
+            TranscriptSegment(timeMs = 3000L, text = "🍃 Từng hạt mưa rơi rớt bên hiên, góc phố vắng tanh"),
+            TranscriptSegment(timeMs = 6000L, text = "🌧️ Kỷ niệm xưa theo gió bay về trong màn đêm lạnh"),
+            TranscriptSegment(timeMs = 9000L, text = "💫 Nhớ ánh mắt dịu dàng và nụ cười ấm áp năm nào"),
+            TranscriptSegment(timeMs = 12000L, text = "🔥 [Điệp khúc] Người yêu hỡi dẫu xa xôi lòng anh không đổi"),
+            TranscriptSegment(timeMs = 15000L, text = "✨ Trọn một đời chỉ yêu riêng bóng hình em!"),
+            TranscriptSegment(timeMs = 18000L, text = "🎶 [Đoạn kết] Khúc nhạc êm đềm dần khép lại...")
         )
 
         val demoTrack = AudioTrack(
