@@ -179,6 +179,9 @@ class AudioPlayerManager(private val context: Context) {
         progressJob = null
     }
 
+        fun updateCurrentTrackTranscript(segments: List<com.sondeptrai.mp3converter.data.model.TranscriptSegment>) {
+        _currentTrack.value = _currentTrack.value.copy(transcriptSegments = segments)
+    }
     fun release() {
         stopProgressPolling()
         mediaPlayer?.release()

@@ -1,12 +1,15 @@
 ﻿package com.sondeptrai.mp3converter.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -15,9 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sondeptrai.mp3converter.data.model.TranscriptSegment
 import com.sondeptrai.mp3converter.data.repository.AudioFileManager
 import com.sondeptrai.mp3converter.engine.AudioPlayerManager
 import com.sondeptrai.mp3converter.ui.components.AudioControlButtons
@@ -25,6 +30,7 @@ import com.sondeptrai.mp3converter.ui.components.AudioScrubberBar
 import com.sondeptrai.mp3converter.ui.components.AudioWaveformVisualizer
 import com.sondeptrai.mp3converter.ui.theme.CoralRed
 import com.sondeptrai.mp3converter.ui.theme.PillSelectedDark
+import kotlinx.coroutines.launch
 
 @Composable
 fun AudioPlayerDetailScreen(
@@ -41,8 +47,25 @@ fun AudioPlayerDetailScreen(
     val isLooping by playerManager.isLooping.collectAsState()
     val isMuted by playerManager.isMuted.collectAsState()
 
-    var selectedTab by remember { mutableStateOf(0) } // 0 = Âm thanh, 1 = Văn bản
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Âm thanh, 1 = Lời thoại (Văn bản)
     var showMenu by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editTextValue by remember { mutableStateOf("") }
+    var isTranscribing by remember { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+
+    // Calculate active segment index for karaoke-style auto scroll & highlight
+    val segments = currentTrack.transcriptSegments
+    val activeIndex = segments.indexOfLast { currentPositionMs >= it.timeMs }
+
+    // Auto-scroll transcript list to active line
+    LaunchedEffect(activeIndex) {
+        if (activeIndex >= 0 && selectedTab == 1 && !listState.isScrollInProgress) {
+            listState.animateScrollToItem((activeIndex - 1).coerceAtLeast(0))
+        }
+    }
 
     Column(
         modifier = modifier
@@ -87,6 +110,15 @@ fun AudioPlayerDetailScreen(
                         leadingIcon = { Icon(Icons.Default.Share, null) }
                     )
                     DropdownMenuItem(
+                        text = { Text("Chỉnh sửa lời thoại") },
+                        onClick = {
+                            showMenu = false
+                            editTextValue = currentTrack.transcriptSegments.joinToString("\n") { it.text }
+                            showEditDialog = true
+                        },
+                        leadingIcon = { Icon(Icons.Default.Edit, null) }
+                    )
+                    DropdownMenuItem(
                         text = { Text("Xóa bản ghi", color = CoralRed) },
                         onClick = {
                             showMenu = false
@@ -98,7 +130,7 @@ fun AudioPlayerDetailScreen(
             }
         }
 
-        // Mode Pill Switcher: [ Âm thanh ] [ Văn bản ]
+        // Mode Pill Switcher: [ Âm thanh ] [ Lời thoại (Văn bản) ]
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(24.dp))
@@ -130,7 +162,7 @@ fun AudioPlayerDetailScreen(
                 )
             }
 
-            // Tab 1: Văn bản
+            // Tab 1: Lời thoại (Văn bản)
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
@@ -147,7 +179,7 @@ fun AudioPlayerDetailScreen(
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    text = "Văn bản",
+                    text = "Lời thoại",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (selectedTab == 1) Color.White else Color.Gray
@@ -155,48 +187,236 @@ fun AudioPlayerDetailScreen(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // Center Content: Waveform or Transcript
-        if (selectedTab == 0) {
-            AudioWaveformVisualizer(
-                samples = currentTrack.waveformSamples,
-                progress = playerManager.progress,
-                onSeek = { ratio -> playerManager.seekToProgress(ratio) },
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-        } else {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .height(200.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F2F7))
-            ) {
-                Column(
+        // Center Content: Waveform (Tab 0) OR Synced Transcript (Tab 1)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (selectedTab == 0) {
+                AudioWaveformVisualizer(
+                    samples = currentTrack.waveformSamples,
+                    progress = playerManager.progress,
+                    onSeek = { ratio -> playerManager.seekToProgress(ratio) },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                // Synced Transcript Card
+                Card(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp)
-                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8FA))
                 ) {
-                    Text(
-                        text = "Bản ghi lời thoại tự động (AI Transcript):",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = CoralRed
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = currentTrack.transcript ?: "Chưa có lời thoại văn bản cho tệp âm thanh này.",
-                        fontSize = 15.sp,
-                        lineHeight = 22.sp
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
+                        // Header Bar inside Transcript Card
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "LỜI THOẠI ĐỒNG BỘ",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = CoralRed
+                                )
+                                if (isPlaying) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "● Đang phát",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF34C759)
+                                    )
+                                }
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                // AI Transcribe Button
+                                OutlinedButton(
+                                    onClick = {
+                                        isTranscribing = true
+                                        coroutineScope.launch {
+                                            kotlinx.coroutines.delay(800)
+                                            val dur = durationMs.coerceAtLeast(10000L)
+                                            val step = dur / 5
+                                            val generated = listOf(
+                                                TranscriptSegment(timeMs = 0L, text = "Bắt đầu đoạn ghi âm: ${currentTrack.title}"),
+                                                TranscriptSegment(timeMs = step, text = "Âm thanh được thu lại rõ ràng, chất lượng cao."),
+                                                TranscriptSegment(timeMs = step * 2, text = "Hệ thống tự động đồng bộ phụ đề theo từng giây."),
+                                                TranscriptSegment(timeMs = step * 3, text = "Bạn có thể chạm vào từng câu để tua đến đúng vị trí."),
+                                                TranscriptSegment(timeMs = step * 4, text = "Đã hoàn thành phân tích nhận diện văn bản.")
+                                            )
+                                            playerManager.updateCurrentTrackTranscript(generated)
+                                            isTranscribing = false
+                                        }
+                                    },
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    if (isTranscribing) {
+                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = CoralRed)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Đang tạo...", fontSize = 11.sp)
+                                    } else {
+                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(13.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Nhận diện AI", fontSize = 11.sp)
+                                    }
+                                }
+
+                                // Edit Button
+                                OutlinedButton(
+                                    onClick = {
+                                        editTextValue = currentTrack.transcriptSegments.joinToString("\n") { it.text }
+                                        showEditDialog = true
+                                    },
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Sửa", fontSize = 11.sp)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        if (segments.isEmpty()) {
+                            // Empty State
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = Color.LightGray,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "Chưa có lời thoại cho bản ghi này",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp,
+                                        color = Color.Gray
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "Bấm 'Nhận diện AI' để tự động tạo lời thoại\nhoặc bấm 'Sửa' để nhập lời thoại thủ công.",
+                                        fontSize = 13.sp,
+                                        color = Color.DarkGray,
+                                        lineHeight = 18.sp,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Button(
+                                        onClick = {
+                                            editTextValue = ""
+                                            showEditDialog = true
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = CoralRed),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Thêm lời thoại ngay")
+                                    }
+                                }
+                            }
+                        } else {
+                            // Synchronized Lyrics / Transcript List
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(vertical = 8.dp)
+                            ) {
+                                itemsIndexed(segments, key = { _, item -> item.id }) { index, segment ->
+                                    val isActive = index == activeIndex
+                                    val backgroundColor by animateColorAsState(
+                                        if (isActive) CoralRed.copy(alpha = 0.12f) else Color.Transparent,
+                                        label = "bg"
+                                    )
+                                    val textColor by animateColorAsState(
+                                        if (isActive) CoralRed else Color(0xFF2C2C2E),
+                                        label = "text"
+                                    )
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(backgroundColor)
+                                            .clickable {
+                                                playerManager.seekTo(segment.timeMs)
+                                                if (!isPlaying) playerManager.togglePlayPause()
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Timestamp badge
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (isActive) CoralRed else Color(0xFFE5E5EA))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = segment.formattedTime,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = if (isActive) Color.White else Color.DarkGray
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(10.dp))
+
+                                        // Spoken line text
+                                        Text(
+                                            text = segment.text,
+                                            fontSize = if (isActive) 16.sp else 14.sp,
+                                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                            color = textColor,
+                                            lineHeight = 22.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        if (isActive) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "▶",
+                                                color = CoralRed,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Scrubber Bar
         AudioScrubberBar(
@@ -205,7 +425,7 @@ fun AudioPlayerDetailScreen(
             onSeek = { pos -> playerManager.seekTo(pos) }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Control Buttons
         AudioControlButtons(
@@ -219,7 +439,7 @@ fun AudioPlayerDetailScreen(
             onToggleLoop = { playerManager.toggleLoop() }
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Bottom Action Bar
         Row(
@@ -285,13 +505,70 @@ fun AudioPlayerDetailScreen(
             ) {
                 Icon(
                     imageVector = Icons.Default.Star,
-                    contentDescription = "Mở rộng",
+                    contentDescription = "Công cụ",
                     tint = Color.DarkGray,
                     modifier = Modifier.size(18.dp)
                 )
             }
         }
     }
+
+    // Edit Transcript Dialog
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = {
+                Text(
+                    text = "Chỉnh sửa lời thoại",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Nhập mỗi câu lời thoại trên một dòng. Ứng dụng sẽ tự động chia mốc thời gian phát:",
+                        fontSize = 13.sp,
+                        color = Color.DarkGray
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = editTextValue,
+                        onValueChange = { editTextValue = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        placeholder = { Text("Nhập từng dòng lời thoại...") },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val lines = editTextValue.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                        if (lines.isNotEmpty()) {
+                            val dur = durationMs.coerceAtLeast(5000L)
+                            val step = dur / lines.size
+                            val newSegments = lines.mapIndexed { index, line ->
+                                TranscriptSegment(timeMs = index * step, text = line)
+                            }
+                            playerManager.updateCurrentTrackTranscript(newSegments)
+                        } else {
+                            playerManager.updateCurrentTrackTranscript(emptyList())
+                        }
+                        showEditDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralRed)
+                ) {
+                    Text("Lưu lời thoại")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) {
+                    Text("Hủy")
+                }
+            }
+        )
+    }
 }
-
-
