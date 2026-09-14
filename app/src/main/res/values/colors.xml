@@ -1,0 +1,6 @@
+﻿<resources>
+    <color name="coral_red">#FF4B4B</color>
+    <color name="coral_red_dark">#D32F2F</color>
+    <color name="waveform_unplayed">#E5E5EA</color>
+    <color name="waveform_played">#FF6E6E</color>
+</resources>

@@ -1,0 +1,6 @@
+﻿<resources>
+    <style name="Theme.MP3Converter" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#00000000</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
