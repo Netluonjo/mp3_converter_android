@@ -8,6 +8,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.sondeptrai.mp3converter.data.model.AudioTrack
 import com.sondeptrai.mp3converter.data.model.TranscriptSegment
+import com.sondeptrai.mp3converter.data.repository.SongLyricsHelper
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,7 @@ class AudioPlayerManager(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private var progressJob: Job? = null
+    private var lyricsJob: Job? = null
 
     private val _currentTrack = MutableStateFlow<AudioTrack>(AudioTrack.demoTrack)
     val currentTrack: StateFlow<AudioTrack> = _currentTrack.asStateFlow()
@@ -46,6 +48,9 @@ class AudioPlayerManager(private val context: Context) {
 
     private val _isMuted = MutableStateFlow(false)
     val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
+
+    private val _isLoadingLyrics = MutableStateFlow(false)
+    val isLoadingLyrics: StateFlow<Boolean> = _isLoadingLyrics.asStateFlow()
 
     val availableSpeeds = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
 
@@ -92,13 +97,14 @@ class AudioPlayerManager(private val context: Context) {
     }
 
     fun loadTrack(track: AudioTrack) {
-        // Ensure track has transcript segments so lyrics are always available
-        val preparedTrack = if (track.transcriptSegments.isEmpty()) {
-            track.copy(transcriptSegments = AudioTrack.generateDefaultSegments(track.title, track.durationMs))
+        val audioFile = if (track.filePath.isNotEmpty()) File(track.filePath) else null
+        val localLyrics = if (track.transcriptSegments.isNotEmpty()) {
+            track.transcriptSegments
         } else {
-            track
+            SongLyricsHelper.getLyricsForTrack(track.title, track.durationMs, audioFile)
         }
 
+        val preparedTrack = track.copy(transcriptSegments = localLyrics)
         _currentTrack.value = preparedTrack
         _durationMs.value = if (preparedTrack.durationMs > 0) preparedTrack.durationMs else 21000L
         _currentPositionMs.value = 0L
@@ -122,6 +128,44 @@ class AudioPlayerManager(private val context: Context) {
             exoPlayer.volume = if (_isMuted.value) 0f else 1f
             exoPlayer.prepare()
         } catch (_: Exception) {}
+
+        // Fetch real lyrics from LRCLIB online API in background if not already cached
+        fetchOnlineLyricsIfNeeded(preparedTrack)
+    }
+
+    private fun fetchOnlineLyricsIfNeeded(track: AudioTrack) {
+        val audioFile = if (track.filePath.isNotEmpty()) File(track.filePath) else null
+        val cachedLrc = audioFile?.let { File(it.parentFile, it.nameWithoutExtension + ".lrc") }
+        if (cachedLrc != null && cachedLrc.exists() && cachedLrc.length() > 0) return
+
+        lyricsJob?.cancel()
+        lyricsJob = scope.launch {
+            _isLoadingLyrics.value = true
+            val online = SongLyricsHelper.fetchOnlineLyrics(track.title, track.durationMs)
+            if (online != null && online.isNotEmpty()) {
+                _currentTrack.value = _currentTrack.value.copy(transcriptSegments = online)
+                if (audioFile != null && audioFile.exists()) {
+                    SongLyricsHelper.saveLrcFile(audioFile, online)
+                }
+            }
+            _isLoadingLyrics.value = false
+        }
+    }
+
+    fun searchLyricsByTitle(customTitle: String) {
+        val track = _currentTrack.value
+        lyricsJob?.cancel()
+        lyricsJob = scope.launch {
+            _isLoadingLyrics.value = true
+            val online = SongLyricsHelper.fetchOnlineLyrics(customTitle, _durationMs.value)
+            if (online != null && online.isNotEmpty()) {
+                _currentTrack.value = _currentTrack.value.copy(transcriptSegments = online)
+                if (track.filePath.isNotEmpty()) {
+                    SongLyricsHelper.saveLrcFile(File(track.filePath), online)
+                }
+            }
+            _isLoadingLyrics.value = false
+        }
     }
 
     fun togglePlayPause() {
@@ -196,7 +240,7 @@ class AudioPlayerManager(private val context: Context) {
                 if (dur > 0 && dur != _durationMs.value) {
                     _durationMs.value = dur
                 }
-                delay(33) // ~30Hz
+                delay(33)
             }
         }
     }
@@ -208,6 +252,7 @@ class AudioPlayerManager(private val context: Context) {
 
     fun release() {
         stopProgressPolling()
+        lyricsJob?.cancel()
         exoPlayer.release()
         scope.cancel()
     }
@@ -223,10 +268,13 @@ class AudioPlayerManager(private val context: Context) {
             val buffer = ShortArray(numSamples)
 
             val chords = listOf(
-                listOf(261.63, 329.63, 392.00), // C major
-                listOf(196.00, 246.94, 293.66), // G major
-                listOf(220.00, 261.63, 329.63), // A minor
-                listOf(174.61, 220.00, 261.63)  // F major
+                listOf(261.63, 329.63, 392.00), // C major (0-3s)
+                listOf(196.00, 246.94, 293.66), // G major (3-6s)
+                listOf(220.00, 261.63, 329.63), // A minor (6-9s)
+                listOf(174.61, 220.00, 261.63), // F major (9-12s)
+                listOf(261.63, 329.63, 392.00), // C major (12-15s)
+                listOf(196.00, 246.94, 293.66), // G major (15-18s)
+                listOf(261.63, 329.63, 392.00)  // C major (18-21s)
             )
 
             for (i in 0 until numSamples) {

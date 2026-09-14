@@ -1,6 +1,5 @@
 package com.sondeptrai.mp3converter.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,7 +12,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,13 +27,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sondeptrai.mp3converter.data.model.TranscriptSegment
 import com.sondeptrai.mp3converter.data.repository.AudioFileManager
-import com.sondeptrai.mp3converter.data.repository.SongLyricsHelper
 import com.sondeptrai.mp3converter.engine.AudioPlayerManager
 import com.sondeptrai.mp3converter.ui.components.AudioControlButtons
 import com.sondeptrai.mp3converter.ui.components.AudioScrubberBar
 import com.sondeptrai.mp3converter.ui.components.AudioWaveformVisualizer
 import com.sondeptrai.mp3converter.ui.theme.CoralRed
-import com.sondeptrai.mp3converter.ui.theme.PillSelectedDark
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -53,40 +49,28 @@ fun AudioPlayerDetailScreen(
     val playbackSpeed by playerManager.playbackSpeed.collectAsState()
     val isLooping by playerManager.isLooping.collectAsState()
     val isMuted by playerManager.isMuted.collectAsState()
+    val isLoadingLyrics by playerManager.isLoadingLyrics.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 = Sóng âm & Lời trực tiếp, 1 = Toàn bộ lời bài hát (Karaoke)
     var showMenu by remember { mutableStateOf(false) }
+    var showSearchLyricsDialog by remember { mutableStateOf(false) }
     var showPasteLyricsDialog by remember { mutableStateOf(false) }
+    var searchSongQuery by remember { mutableStateOf("") }
     var pasteLyricsText by remember { mutableStateOf("") }
-    var isTranscribing by remember { mutableStateOf(false) }
-
-    // Live Sync Offset in milliseconds (adjusts delay on the fly)
-    var syncOffsetMs by remember(currentTrack.id) { mutableLongStateOf(0L) }
-    var syncSavedNotice by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // Base segments for the current track
-    val segments = remember(currentTrack.id, currentTrack.transcriptSegments) {
-        if (currentTrack.transcriptSegments.isNotEmpty()) {
-            currentTrack.transcriptSegments
-        } else {
-            val f = if (currentTrack.filePath.isNotEmpty()) File(currentTrack.filePath) else null
-            SongLyricsHelper.getLyricsForTrack(currentTrack.title, durationMs, f)
-        }
-    }
+    // Real segments from current track
+    val segments = currentTrack.transcriptSegments
 
-    // Current adjusted position taking syncOffsetMs into account
-    val effectivePositionMs = (currentPositionMs + syncOffsetMs).coerceAtLeast(0L)
-    val activeIndex = segments.indexOfLast { effectivePositionMs >= it.timeMs }
-    val currentSegment = if (activeIndex >= 0 && activeIndex < segments.size) segments[activeIndex] else segments.firstOrNull()
-    val nextSegment = if (activeIndex + 1 in segments.indices) segments[activeIndex + 1] else null
+    // Calculate currently active line being sung
+    val activeIndex = segments.indexOfLast { currentPositionMs >= it.timeMs }
 
-    // Auto-scroll transcript list to active line
-    LaunchedEffect(activeIndex, selectedTab) {
-        if (activeIndex >= 0 && selectedTab == 1 && !listState.isScrollInProgress) {
-            listState.animateScrollToItem((activeIndex - 1).coerceAtLeast(0))
+    // Automatically scroll to keep the currently sung line centered
+    LaunchedEffect(activeIndex) {
+        if (activeIndex >= 0 && !listState.isScrollInProgress) {
+            val targetScroll = (activeIndex - 2).coerceAtLeast(0)
+            listState.animateScrollToItem(targetScroll)
         }
     }
 
@@ -134,6 +118,15 @@ fun AudioPlayerDetailScreen(
                     onDismissRequest = { showMenu = false }
                 ) {
                     DropdownMenuItem(
+                        text = { Text("Tìm lời bài hát online") },
+                        onClick = {
+                            showMenu = false
+                            searchSongQuery = currentTrack.title
+                            showSearchLyricsDialog = true
+                        },
+                        leadingIcon = { Icon(Icons.Default.Search, null) }
+                    )
+                    DropdownMenuItem(
                         text = { Text("Dán lời bài hát (Lyrics / LRC)") },
                         onClick = {
                             showMenu = false
@@ -162,538 +155,221 @@ fun AudioPlayerDetailScreen(
             }
         }
 
-        // Mode Pill Switcher: [ Âm thanh & Lời ] [ Lời Karaoke ]
-        Row(
+        // Compact Waveform Visualizer
+        Card(
             modifier = Modifier
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFFF2F2F7))
-                .padding(4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxWidth()
+                .height(68.dp)
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9FB))
         ) {
-            // Tab 0: Âm thanh & Lời trực tiếp
-            Row(
+            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (selectedTab == 0) PillSelectedDark else Color.Transparent)
-                    .clickable { selectedTab = 0 }
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = if (selectedTab == 0) Color.White else Color.Gray,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = "Âm thanh & Lời",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (selectedTab == 0) Color.White else Color.Gray
-                )
-            }
-
-            // Tab 1: Toàn bộ Lời bài hát (Karaoke)
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (selectedTab == 1) PillSelectedDark else Color.Transparent)
-                    .clickable { selectedTab = 1 }
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = null,
-                    tint = if (selectedTab == 1) Color.White else Color.Gray,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = "Lời bài hát (Karaoke)",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (selectedTab == 1) Color.White else Color.Gray
+                AudioWaveformVisualizer(
+                    samples = currentTrack.waveformSamples,
+                    progress = playerManager.progress,
+                    onSeek = { ratio -> playerManager.seekToProgress(ratio) },
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Center Content Box
-        Box(
+        // Main Lyrics Display Card (Center Stage)
+        Card(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF7F8FA)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed.copy(alpha = 0.2f))
         ) {
-            if (selectedTab == 0) {
-                // Dual View: Waveform Visualizer on Top + Prominent Live Synced Lyrics Below
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                // Lyrics Card Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 1. Audio Waveform Box
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(0.48f),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9FB))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            AudioWaveformVisualizer(
-                                samples = currentTrack.waveformSamples,
-                                progress = playerManager.progress,
-                                onSeek = { ratio -> playerManager.seekToProgress(ratio) },
-                                modifier = Modifier.fillMaxSize()
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (isPlaying) Color(0xFF34C759) else Color.Gray)
+                        )
+                        Text(
+                            text = "LỜI BÀI HÁT",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CoralRed,
+                            letterSpacing = 0.5.sp
+                        )
+                        if (isLoadingLyrics) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 1.5.dp,
+                                color = CoralRed
                             )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Đang tải lời online...", fontSize = 11.sp, color = Color.Gray)
                         }
                     }
 
-                    // 2. Prominent Live Synced Lyrics Card (Always visible!)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(0.52f),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F4F8)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed.copy(alpha = 0.25f))
+                    // Quick Action: Search or Paste
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(
+                        Text(
+                            text = "🔍 Tìm lời",
+                            fontSize = 11.sp,
+                            color = CoralRed,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            // Header of Live Lyric Card
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(if (isPlaying) Color(0xFF34C759) else Color.Gray)
-                                    )
-                                    Text(
-                                        text = "LỜI BÀI HÁT ĐỒNG BỘ",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = CoralRed,
-                                        letterSpacing = 0.5.sp
-                                    )
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(CoralRed.copy(alpha = 0.1f))
+                                .clickable {
+                                    searchSongQuery = currentTrack.title
+                                    showSearchLyricsDialog = true
                                 }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
 
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    // Quick paste lyrics button
-                                    Text(
-                                        text = "Dán lời",
-                                        fontSize = 11.sp,
-                                        color = CoralRed,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.clickable {
-                                            pasteLyricsText = segments.joinToString("\n") { it.text }
-                                            showPasteLyricsDialog = true
-                                        }
-                                    )
-
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.clickable { selectedTab = 1 }
-                                    ) {
-                                        Text(
-                                            text = "Mở rộng",
-                                            fontSize = 11.sp,
-                                            color = Color.Gray,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Icon(
-                                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                            contentDescription = null,
-                                            tint = Color.Gray,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
+                        Text(
+                            text = "Dán lời",
+                            fontSize = 11.sp,
+                            color = Color.DarkGray,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFFE5E7EB))
+                                .clickable {
+                                    pasteLyricsText = segments.joinToString("\n") { it.text }
+                                    showPasteLyricsDialog = true
                                 }
-                            }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
 
-                            // Active Lyric Line (Highlighted in Real Time)
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { selectedTab = 1 },
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                currentSegment?.let { seg ->
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(CoralRed)
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(
-                                                text = seg.formattedTime,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color.White
-                                            )
-                                        }
+                Spacer(modifier = Modifier.height(10.dp))
 
-                                        Text(
-                                            text = seg.text,
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF1C1C1E),
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                            lineHeight = 22.sp
-                                        )
-                                    }
-                                }
+                // Synchronized Lyrics Scroll View
+                if (segments.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = null,
+                                tint = Color.LightGray,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Chưa có lời cho bài hát này",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color.Gray
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Bấm '🔍 Tìm lời' để tìm lời bài hát online hoặc 'Dán lời' từ Zing MP3 / Spotify.",
+                                fontSize = 12.sp,
+                                color = Color.DarkGray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        itemsIndexed(segments) { index, segment ->
+                            val isActive = index == activeIndex
+                            val backgroundColor by animateColorAsState(
+                                if (isActive) CoralRed.copy(alpha = 0.12f) else Color.Transparent,
+                                label = "bg"
+                            )
+                            val textColor by animateColorAsState(
+                                if (isActive) CoralRed else Color(0xFF2C2C2E).copy(alpha = 0.75f),
+                                label = "text"
+                            )
 
-                                // Next upcoming line preview
-                                nextSegment?.let { next ->
-                                    Text(
-                                        text = "Tiếp theo: ${next.text}",
-                                        fontSize = 13.sp,
-                                        color = Color.Gray,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
-                                    )
-                                }
-                            }
-
-                            // Interactive Sync Offset Bar (Chỉnh khớp nhịp trực tiếp)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color(0xFFE5E7EB).copy(alpha = 0.6f))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(backgroundColor)
+                                    .border(
+                                        width = if (isActive) 1.5.dp else 0.dp,
+                                        color = if (isActive) CoralRed.copy(alpha = 0.4f) else Color.Transparent,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable {
+                                        playerManager.seekTo(segment.timeMs)
+                                        if (!isPlaying) playerManager.play()
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "Chỉnh nhịp:",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.DarkGray
-                                )
-
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                // Timestamp badge
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (isActive) CoralRed else Color(0xFFE5E5EA))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
-                                    // Sớm hơn 0.5s
                                     Text(
-                                        text = "Sớm (-0.5s)",
-                                        fontSize = 11.sp,
-                                        color = CoralRed,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(Color.White)
-                                            .clickable { syncOffsetMs += 500L }
-                                            .padding(horizontal = 6.dp, vertical = 3.dp)
-                                    )
-
-                                    // Offset badge
-                                    val offsetSec = syncOffsetMs / 1000f
-                                    Text(
-                                        text = if (offsetSec >= 0) "+%.1fs".format(offsetSec) else "%.1fs".format(offsetSec),
+                                        text = segment.formattedTime,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.Monospace,
-                                        color = if (syncOffsetMs != 0L) CoralRed else Color.Gray
+                                        color = if (isActive) Color.White else Color.DarkGray
                                     )
-
-                                    // Chậm hơn 0.5s
-                                    Text(
-                                        text = "Trễ (+0.5s)",
-                                        fontSize = 11.sp,
-                                        color = CoralRed,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(Color.White)
-                                            .clickable { syncOffsetMs -= 500L }
-                                            .padding(horizontal = 6.dp, vertical = 3.dp)
-                                    )
-
-                                    // Reset offset button if changed
-                                    if (syncOffsetMs != 0L) {
-                                        Text(
-                                            text = "Về 0",
-                                            fontSize = 10.sp,
-                                            color = Color.Gray,
-                                            modifier = Modifier
-                                                .clickable { syncOffsetMs = 0L }
-                                                .padding(horizontal = 4.dp)
-                                        )
-                                    }
                                 }
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Tab 1: Full-Screen Karaoke Transcript Card with Tap-To-Sync
-                Card(
-                    modifier = Modifier.fillMaxSize(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8FA))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(14.dp)
-                    ) {
-                        // Header Bar inside Transcript Card
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+
+                                Spacer(modifier = Modifier.width(10.dp))
+
+                                // Real Song Lyric text
                                 Text(
-                                    text = "LỜI BÀI HÁT KARAOKE",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = CoralRed
+                                    text = segment.text,
+                                    fontSize = if (isActive) 17.sp else 14.sp,
+                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                    color = textColor,
+                                    lineHeight = 22.sp,
+                                    modifier = Modifier.weight(1f)
                                 )
-                                if (isPlaying) {
+
+                                if (isActive) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "• Đang hát",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFF34C759)
+                                        text = "▶",
+                                        color = CoralRed,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                }
-                            }
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                // Paste / Edit Lyrics Button
-                                OutlinedButton(
-                                    onClick = {
-                                        pasteLyricsText = segments.joinToString("\n") { it.text }
-                                        showPasteLyricsDialog = true
-                                    },
-                                    modifier = Modifier.height(32.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(13.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Dán lời", fontSize = 11.sp)
-                                }
-
-                                // Reset AI Transcribe Button
-                                OutlinedButton(
-                                    onClick = {
-                                        isTranscribing = true
-                                        coroutineScope.launch {
-                                            kotlinx.coroutines.delay(500)
-                                            val f = if (currentTrack.filePath.isNotEmpty()) File(currentTrack.filePath) else null
-                                            val generated = SongLyricsHelper.getLyricsForTrack(currentTrack.title, durationMs, f)
-                                            playerManager.updateCurrentTrackTranscript(generated)
-                                            syncOffsetMs = 0L
-                                            isTranscribing = false
-                                        }
-                                    },
-                                    modifier = Modifier.height(32.dp),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    if (isTranscribing) {
-                                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = CoralRed)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("...", fontSize = 11.sp)
-                                    } else {
-                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(13.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Đặt lại", fontSize = 11.sp)
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Sync Toolbar: Quick offset buttons + Save Sync
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFFE5E7EB))
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "⏱️ Khớp nhịp:",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.DarkGray
-                            )
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "-0.5s",
-                                    fontSize = 11.sp,
-                                    color = CoralRed,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color.White)
-                                        .clickable { syncOffsetMs += 500L }
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                                Text(
-                                    text = "+0.5s",
-                                    fontSize = 11.sp,
-                                    color = CoralRed,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color.White)
-                                        .clickable { syncOffsetMs -= 500L }
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-
-                                if (syncOffsetMs != 0L) {
-                                    Button(
-                                        onClick = {
-                                            val shifted = SongLyricsHelper.applyOffset(segments, syncOffsetMs)
-                                            playerManager.updateCurrentTrackTranscript(shifted)
-                                            if (currentTrack.filePath.isNotEmpty()) {
-                                                SongLyricsHelper.saveLrcFile(File(currentTrack.filePath), shifted)
-                                            }
-                                            syncOffsetMs = 0L
-                                            syncSavedNotice = true
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = CoralRed),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                        modifier = Modifier.height(26.dp)
-                                    ) {
-                                        Text("💾 Lưu khớp", fontSize = 10.sp)
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Synchronized Lyrics / Transcript List with Tap-To-Sync on each line
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(vertical = 4.dp)
-                        ) {
-                            itemsIndexed(segments) { index, segment ->
-                                val isActive = index == activeIndex
-                                val backgroundColor by animateColorAsState(
-                                    if (isActive) CoralRed.copy(alpha = 0.12f) else Color.White,
-                                    label = "bg"
-                                )
-                                val textColor by animateColorAsState(
-                                    if (isActive) CoralRed else Color(0xFF2C2C2E),
-                                    label = "text"
-                                )
-
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(backgroundColor)
-                                        .border(
-                                            width = if (isActive) 1.5.dp else 0.dp,
-                                            color = if (isActive) CoralRed else Color.Transparent,
-                                            shape = RoundedCornerShape(12.dp)
-                                        )
-                                        .clickable {
-                                            playerManager.seekTo(segment.timeMs)
-                                            if (!isPlaying) playerManager.togglePlayPause()
-                                        }
-                                        .padding(horizontal = 10.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Timestamp badge
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(if (isActive) CoralRed else Color(0xFFE5E5EA))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = segment.formattedTime,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            fontFamily = FontFamily.Monospace,
-                                            color = if (isActive) Color.White else Color.DarkGray
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // Spoken line text
-                                    Text(
-                                        text = segment.text,
-                                        fontSize = if (isActive) 15.sp else 14.sp,
-                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                                        color = textColor,
-                                        lineHeight = 20.sp,
-                                        modifier = Modifier.weight(1f)
-                                    )
-
-                                    // Tap to Sync button (Khớp câu này vào đúng giây hiện tại đang nghe)
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isActive) CoralRed.copy(alpha = 0.18f) else Color(0xFFF2F2F7))
-                                            .clickable {
-                                                val updated = SongLyricsHelper.updateSegmentTime(
-                                                    segments = segments,
-                                                    segmentId = segment.id,
-                                                    newTimeMs = currentPositionMs
-                                                )
-                                                playerManager.updateCurrentTrackTranscript(updated)
-                                                if (currentTrack.filePath.isNotEmpty()) {
-                                                    SongLyricsHelper.saveLrcFile(File(currentTrack.filePath), updated)
-                                                }
-                                            }
-                                            .padding(horizontal = 6.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = "⏱️ Khớp",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = CoralRed
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -702,7 +378,7 @@ fun AudioPlayerDetailScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Scrubber Bar
         AudioScrubberBar(
@@ -795,13 +471,13 @@ fun AudioPlayerDetailScreen(
         }
     }
 
-    // Paste / Edit Lyrics Dialog
-    if (showPasteLyricsDialog) {
+    // Search Online Lyrics Dialog
+    if (showSearchLyricsDialog) {
         AlertDialog(
-            onDismissRequest = { showPasteLyricsDialog = false },
+            onDismissRequest = { showSearchLyricsDialog = false },
             title = {
                 Text(
-                    text = "Dán lời bài hát (Lyrics / LRC)",
+                    text = "Tìm lời bài hát online",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
@@ -809,7 +485,57 @@ fun AudioPlayerDetailScreen(
             text = {
                 Column {
                     Text(
-                        text = "Bạn có thể dán lời bài hát dạng văn bản thường hoặc dạng LRC [00:15.20] từ Zing MP3 / Spotify. Ứng dụng sẽ tự động chia mốc nhịp chính xác:",
+                        text = "Nhập tên bài hát hoặc ca sĩ để tải lời bài hát chính xác từ kho dữ liệu:",
+                        fontSize = 13.sp,
+                        color = Color.DarkGray
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = searchSongQuery,
+                        onValueChange = { searchSongQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Ví dụ: Nơi này có anh, Shape of You...") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (searchSongQuery.isNotBlank()) {
+                            playerManager.searchLyricsByTitle(searchSongQuery)
+                        }
+                        showSearchLyricsDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralRed)
+                ) {
+                    Text("Tìm & Cập nhật lời")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSearchLyricsDialog = false }) {
+                    Text("Hủy")
+                }
+            }
+        )
+    }
+
+    // Paste / Edit Lyrics Dialog
+    if (showPasteLyricsDialog) {
+        AlertDialog(
+            onDismissRequest = { showPasteLyricsDialog = false },
+            title = {
+                Text(
+                    text = "Dán lời bài hát",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Dán lời bài hát dạng chữ thường hoặc định dạng LRC [00:15.20] từ Zing MP3 / Spotify. Ứng dụng sẽ tự động chia nhịp chính xác:",
                         fontSize = 13.sp,
                         color = Color.DarkGray
                     )
@@ -831,7 +557,6 @@ fun AudioPlayerDetailScreen(
                         val updated = fileManager.saveCustomLyrics(currentTrack, pasteLyricsText)
                         if (updated.isNotEmpty()) {
                             playerManager.updateCurrentTrackTranscript(updated)
-                            syncOffsetMs = 0L
                         }
                         showPasteLyricsDialog = false
                     },

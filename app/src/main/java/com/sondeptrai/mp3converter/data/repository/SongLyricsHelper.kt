@@ -1,8 +1,14 @@
 package com.sondeptrai.mp3converter.data.repository
 
 import com.sondeptrai.mp3converter.data.model.TranscriptSegment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import java.io.File
 import java.io.RandomAccessFile
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import java.util.regex.Pattern
 
 object SongLyricsHelper {
@@ -11,7 +17,7 @@ object SongLyricsHelper {
     private val TIME_TAG_PATTERN = """\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]""".toPattern()
 
     /**
-     * Parse either standard LRC format with millisecond timestamps ([00:15.30] text) or plain text lyrics.
+     * Parse standard LRC format ([00:15.30] text) or plain text lyrics into timestamped segments.
      */
     fun parseLrcOrText(rawContent: String, totalDurationMs: Long): List<TranscriptSegment> {
         val lines = rawContent.lines().map { it.trim() }.filter { it.isNotEmpty() }
@@ -35,7 +41,9 @@ object SongLyricsHelper {
                         }
                     } else 0L
                     val totalMs = min * 60000L + sec * 1000L + ms
-                    parsedLrc.add(TranscriptSegment(timeMs = totalMs, text = text.ifEmpty { "..." }))
+                    if (text.isNotEmpty() && !text.startsWith("[ti:") && !text.startsWith("[ar:") && !text.startsWith("[al:")) {
+                        parsedLrc.add(TranscriptSegment(timeMs = totalMs, text = text))
+                    }
                 }
             }
         }
@@ -44,8 +52,7 @@ object SongLyricsHelper {
             return parsedLrc.sortedBy { it.timeMs }
         }
 
-        // Natural musical pacer for plain text lyrics:
-        // Pop songs have ~10s intro, then 4-5 seconds per singing line
+        // Natural musical pacer for plain text lyrics
         val totalMs = totalDurationMs.coerceAtLeast(20000L)
         val introMs = (totalMs * 0.08).toLong().coerceIn(4000L, 14000L)
         val availableSingingMs = (totalMs - introMs - 4000L).coerceAtLeast(8000L)
@@ -58,29 +65,63 @@ object SongLyricsHelper {
     }
 
     /**
-     * Apply time offset (in ms) to adjust sync in real time (+/- 0.5s, 1s)
+     * Fetch real synchronized lyrics from LRCLIB public API (Free, open-source, no API key needed).
      */
-    fun applyOffset(segments: List<TranscriptSegment>, offsetMs: Long): List<TranscriptSegment> {
-        return segments.map {
-            it.copy(timeMs = (it.timeMs + offsetMs).coerceAtLeast(0L))
-        }
+    suspend fun fetchOnlineLyrics(title: String, durationMs: Long): List<TranscriptSegment>? = withContext(Dispatchers.IO) {
+        try {
+            val cleanTitle = cleanSongTitle(title)
+            if (cleanTitle.length < 2) return@withContext null
+
+            val encoded = URLEncoder.encode(cleanTitle, "UTF-8")
+            val url = URL("https://lrclib.net/api/search?q=$encoded")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 6000
+            conn.readTimeout = 6000
+            conn.setRequestProperty("User-Agent", "MP3ConverterAndroid/1.0")
+
+            if (conn.responseCode == 200) {
+                val jsonString = conn.inputStream.bufferedReader().use { it.readText() }
+                val array = JSONArray(jsonString)
+                if (array.length() > 0) {
+                    // 1. Prefer syncedLyrics
+                    for (i in 0 until array.length()) {
+                        val item = array.getJSONObject(i)
+                        val synced = item.optString("syncedLyrics", "")
+                        if (synced.isNotBlank()) {
+                            val segments = parseLrcOrText(synced, durationMs)
+                            if (segments.isNotEmpty()) return@withContext segments
+                        }
+                    }
+                    // 2. Fall back to plainLyrics
+                    for (i in 0 until array.length()) {
+                        val item = array.getJSONObject(i)
+                        val plain = item.optString("plainLyrics", "")
+                        if (plain.isNotBlank()) {
+                            val segments = parseLrcOrText(plain, durationMs)
+                            if (segments.isNotEmpty()) return@withContext segments
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return@withContext null
+    }
+
+    private fun cleanSongTitle(title: String): String {
+        return title
+            .replace(Regex("(?i)\\.(mp3|m4a|wav|aac|flac|ogg)"), "")
+            .replace(Regex("(?i)_(Trimmed|Boosted|Converted|Audio|Video)"), "")
+            .replace(Regex("(?i)(official|music|video|mv|audio|remix|lyric|lyrics|hq|hd)"), "")
+            .replace(Regex("[_\\-\\(\\[\\)\\]]"), " ")
+            .trim()
     }
 
     /**
-     * Update a single segment's timestamp to the exact current playback position (Tap to Sync)
-     */
-    fun updateSegmentTime(segments: List<TranscriptSegment>, segmentId: String, newTimeMs: Long): List<TranscriptSegment> {
-        return segments.map {
-            if (it.id == segmentId) it.copy(timeMs = newTimeMs.coerceAtLeast(0L)) else it
-        }.sortedBy { it.timeMs }
-    }
-
-    /**
-     * Look for sidecar .lrc file or embedded ID3 USLT lyrics tag.
+     * Check sidecar .lrc file or embedded ID3 USLT lyrics tag.
      */
     fun extractEmbeddedLyrics(audioFile: File): List<TranscriptSegment>? {
         try {
-            // 1. Check sidecar .lrc file
             val lrcFile = File(audioFile.parentFile, audioFile.nameWithoutExtension + ".lrc")
             if (lrcFile.exists() && lrcFile.length() > 0) {
                 val content = lrcFile.readText(Charsets.UTF_8)
@@ -88,7 +129,6 @@ object SongLyricsHelper {
                 if (segments.isNotEmpty()) return segments
             }
 
-            // 2. Check sidecar .txt file
             val txtFile = File(audioFile.parentFile, audioFile.nameWithoutExtension + ".txt")
             if (txtFile.exists() && txtFile.length() > 0) {
                 val content = txtFile.readText(Charsets.UTF_8)
@@ -96,7 +136,6 @@ object SongLyricsHelper {
                 if (segments.isNotEmpty()) return segments
             }
 
-            // 3. Scan for ID3v2 USLT in MP3 files
             if (audioFile.extension.equals("mp3", ignoreCase = true) && audioFile.length() > 128) {
                 val extracted = readId3UsltLyrics(audioFile)
                 if (!extracted.isNullOrBlank()) {
@@ -164,7 +203,7 @@ object SongLyricsHelper {
     }
 
     /**
-     * Retrieve authentic song lyrics with studio-accurate timestamps.
+     * Immediate offline lyrics lookup: local file -> built-in popular songs -> fallback.
      */
     fun getLyricsForTrack(title: String, durationMs: Long, audioFile: File?): List<TranscriptSegment> {
         if (audioFile != null && audioFile.exists()) {
@@ -174,7 +213,6 @@ object SongLyricsHelper {
 
         val cleanTitle = title.lowercase().trim()
 
-        // Exact studio timestamps matching actual released song audio
         when {
             cleanTitle.contains("nơi này có anh") || cleanTitle.contains("noi nay co anh") -> {
                 return listOf(
@@ -257,19 +295,15 @@ object SongLyricsHelper {
             }
         }
 
-        // Natural musical pacer for any general song
-        val totalMs = durationMs.coerceAtLeast(21000L)
-        val introMs = (totalMs * 0.08).toLong().coerceIn(3000L, 12000L)
-        val step = 4500L
-
+        // Demo track default
         return listOf(
-            TranscriptSegment(timeMs = 0L, text = "🎵 [Dạo đầu] Giai điệu bài hát '$title' ngân vang du dương..."),
-            TranscriptSegment(timeMs = introMs, text = "🍃 Từng giọt mưa rơi tí tách bên hiên, góc phố vắng bóng người"),
-            TranscriptSegment(timeMs = introMs + step, text = "🌧️ Kỷ niệm năm xưa theo ngọn gió đông trở về trong nỗi nhớ"),
-            TranscriptSegment(timeMs = introMs + step * 2, text = "💫 Nhớ ánh mắt hiền dịu, nụ cười rạng rỡ trao nhau ngày đầu"),
-            TranscriptSegment(timeMs = introMs + step * 3, text = "🔥 [Điệp khúc] Người yêu hỡi, dẫu tháng năm đổi thay lòng anh không phai"),
-            TranscriptSegment(timeMs = introMs + step * 4, text = "✨ Hãy cùng nhau nắm chặt tay vượt qua muôn ngàn bão giông cuộc đời"),
-            TranscriptSegment(timeMs = (totalMs - 3000L).coerceAtLeast(introMs + step * 5), text = "🎶 Khúc nhạc nhẹ dần, gửi trọn yêu thương vào từng nốt ngân.")
+            TranscriptSegment(timeMs = 0L, text = "🎵 [Dạo đầu] Giai điệu bài hát '$title' bắt đầu..."),
+            TranscriptSegment(timeMs = 3000L, text = "🍃 Từng hạt mưa rơi rớt bên hiên, góc phố vắng tanh"),
+            TranscriptSegment(timeMs = 6000L, text = "🌧️ Kỷ niệm xưa theo gió bay về trong màn đêm lạnh"),
+            TranscriptSegment(timeMs = 9000L, text = "💫 Nhớ ánh mắt dịu dàng và nụ cười ấm áp năm nào"),
+            TranscriptSegment(timeMs = 12000L, text = "🔥 [Điệp khúc] Người yêu hỡi dẫu xa xôi lòng anh không đổi"),
+            TranscriptSegment(timeMs = 15000L, text = "✨ Trọn một đời chỉ yêu riêng bóng hình em!"),
+            TranscriptSegment(timeMs = 18000L, text = "🎶 [Đoạn kết] Khúc nhạc êm đềm dần khép lại...")
         )
     }
 }
