@@ -57,15 +57,13 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation(libs.androidx.material.icons.extended)
     implementation(libs.kotlinx.coroutines.android)
 
-    // ExoPlayer (Media3) for smooth audio playback and waveform synchronization
+    // AndroidX Media3 (ExoPlayer + Transformer) for high-performance audio playback & editing
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-common:1.4.1")
-
-    // FFmpeg-Kit for Android (Audio processing engine)
-    implementation("com.arthenica:ffmpeg-kit-audio:6.0-2")
+    implementation("androidx.media3:media3-transformer:1.4.1")
+    implementation("androidx.media3:media3-effect:1.4.1")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -54,7 +54,7 @@ fun MainTabContainer(
                         NavigationBarItem(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
-                            icon = { Icon(Icons.Default.GraphicEq, contentDescription = "Studio") },
+                            icon = { Icon(Icons.Default.Home, contentDescription = "Studio") },
                             label = { Text("Studio") },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = CoralRed,
@@ -65,7 +65,7 @@ fun MainTabContainer(
                         NavigationBarItem(
                             selected = selectedTab == 1,
                             onClick = { selectedTab = 1 },
-                            icon = { Icon(Icons.Default.Tune, contentDescription = "Công cụ") },
+                            icon = { Icon(Icons.Default.Build, contentDescription = "Công cụ") },
                             label = { Text("Công cụ") },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = CoralRed,
@@ -76,7 +76,7 @@ fun MainTabContainer(
                         NavigationBarItem(
                             selected = selectedTab == 2,
                             onClick = { selectedTab = 2 },
-                            icon = { Icon(Icons.Default.LibraryMusic, contentDescription = "Thư viện") },
+                            icon = { Icon(Icons.Default.List, contentDescription = "Thư viện") },
                             label = { Text("Thư viện") },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = CoralRed,
@@ -118,3 +118,4 @@ fun MainTabContainer(
         )
     }
 }
+

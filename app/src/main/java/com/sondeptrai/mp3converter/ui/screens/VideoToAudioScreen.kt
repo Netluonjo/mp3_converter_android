@@ -96,7 +96,7 @@ fun VideoToAudioScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            Icons.Default.VideoCall,
+                            Icons.Default.PlayArrow,
                             contentDescription = null,
                             tint = CoralRed,
                             modifier = Modifier.size(48.dp)
@@ -123,7 +123,7 @@ fun VideoToAudioScreen(
                                 .background(Color.Black),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Movie, contentDescription = null, tint = Color.White)
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(videoName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -233,9 +233,9 @@ fun VideoToAudioScreen(
                 shape = RoundedCornerShape(16.dp)
             ) {
                 if (isProcessing) {
-                    CircularProgressView(modifier = Modifier.size(24.dp), color = Color.White)
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
                 } else {
-                    Icon(Icons.Default.Bolt, contentDescription = null)
+                    Icon(Icons.Default.PlayArrow, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Bắt đầu trích xuất âm thanh", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
@@ -259,3 +259,5 @@ fun VideoToAudioScreen(
         )
     }
 }
+
+

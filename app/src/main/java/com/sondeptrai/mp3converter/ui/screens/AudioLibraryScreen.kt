@@ -93,7 +93,7 @@ fun AudioLibraryScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (isCurrent && isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                imageVector = if (isCurrent && isPlaying) Icons.Default.Close else Icons.Default.PlayArrow,
                                 contentDescription = null,
                                 tint = if (isCurrent && isPlaying) Color.White else CoralRed,
                                 modifier = Modifier.size(22.dp)
@@ -132,3 +132,5 @@ fun AudioLibraryScreen(
         }
     }
 }
+
+

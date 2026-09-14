@@ -6,9 +6,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CallMerge
+// import CallMerge
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PlusOne
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -147,7 +147,7 @@ fun AudioMergerScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = CoralRed),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(Icons.Default.CallMerge, contentDescription = null)
+                Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Ghép ${selectedTracks.size} tệp thành một", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
@@ -196,3 +196,5 @@ fun AudioMergerScreen(
         )
     }
 }
+
+

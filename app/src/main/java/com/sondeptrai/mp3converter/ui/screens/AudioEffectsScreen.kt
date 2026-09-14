@@ -6,7 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -182,7 +182,7 @@ fun AudioEffectsScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = CoralRed),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                Icon(Icons.Default.Star, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Áp dụng & Xuất tệp mới", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
@@ -205,3 +205,5 @@ fun AudioEffectsScreen(
         )
     }
 }
+
+

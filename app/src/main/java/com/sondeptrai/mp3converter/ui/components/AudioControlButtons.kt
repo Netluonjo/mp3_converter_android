@@ -28,24 +28,23 @@ fun AudioControlButtons(
     onTogglePlayPause: () -> Unit,
     onSkipBackward: () -> Unit,
     onSkipForward: () -> Unit,
-    onCycleSpeed: () -> Unit,
+    onChangeSpeed: () -> Unit,
     onToggleLoop: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Speed pill
-        Box(
+        // Speed Button (1x, 1.25x, 1.5x, 2x)
+        IconButton(
+            onClick = onChangeSpeed,
             modifier = Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .clickable { onCycleSpeed() },
-            contentAlignment = Alignment.Center
         ) {
             val speedLabel = if (playbackSpeed == playbackSpeed.toInt().toFloat()) {
                 "x${playbackSpeed.toInt()}"
@@ -61,11 +60,14 @@ fun AudioControlButtons(
 
         // Rewind 10s
         IconButton(onClick = onSkipBackward) {
-            Icon(
-                imageVector = Icons.Default.Replay10,
-                contentDescription = "Tua lùi 10s",
-                modifier = Modifier.size(30.dp)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Tua lai 10s",
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(text = "10", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
         }
 
         // Primary Play/Pause Red Button
@@ -78,28 +80,40 @@ fun AudioControlButtons(
                 .clickable { onTogglePlayPause() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = "Play/Pause",
-                tint = Color.White,
-                modifier = Modifier.size(36.dp)
-            )
+            if (isPlaying) {
+                Text(
+                    text = "❚❚",
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Phát",
+                    tint = Color.White,
+                    modifier = Modifier.size(38.dp)
+                )
+            }
         }
 
         // Forward 10s
         IconButton(onClick = onSkipForward) {
-            Icon(
-                imageVector = Icons.Default.Forward10,
-                contentDescription = "Tua tiến 10s",
-                modifier = Modifier.size(30.dp)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "10", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "Tua tien 10s",
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
         // Loop button
         IconButton(onClick = onToggleLoop) {
             Icon(
-                imageVector = Icons.Default.Repeat,
-                contentDescription = "Lặp đoạn",
+                imageVector = Icons.Default.Refresh,
+                contentDescription = "Lap doan",
                 tint = if (isLooping) CoralRed else Color.Black,
                 modifier = Modifier.size(26.dp)
             )

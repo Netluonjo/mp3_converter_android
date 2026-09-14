@@ -61,7 +61,7 @@ fun AudioPlayerDetailScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onNavigateToTools) {
-                Icon(Icons.Default.ArrowBackIosNew, contentDescription = "Trở lại")
+                Icon(Icons.Default.ArrowBack, contentDescription = "Trở lại")
             }
 
             Text(
@@ -72,7 +72,7 @@ fun AudioPlayerDetailScreen(
 
             Box {
                 IconButton(onClick = { showMenu = true }) {
-                    Icon(Icons.Default.MoreHoriz, contentDescription = "Tùy chọn")
+                    Icon(Icons.Default.MoreVert, contentDescription = "Tùy chọn")
                 }
                 DropdownMenu(
                     expanded = showMenu,
@@ -117,7 +117,7 @@ fun AudioPlayerDetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.GraphicEq,
+                    imageVector = Icons.Default.PlayArrow,
                     contentDescription = null,
                     tint = if (selectedTab == 0) Color.White else Color.Gray,
                     modifier = Modifier.size(16.dp)
@@ -141,7 +141,7 @@ fun AudioPlayerDetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.ChatBubbleOutline,
+                    imageVector = Icons.Default.Info,
                     contentDescription = null,
                     tint = if (selectedTab == 1) Color.White else Color.Gray,
                     modifier = Modifier.size(16.dp)
@@ -215,7 +215,7 @@ fun AudioPlayerDetailScreen(
             onTogglePlayPause = { playerManager.togglePlayPause() },
             onSkipBackward = { playerManager.skipBackward10() },
             onSkipForward = { playerManager.skipForward10() },
-            onCycleSpeed = { playerManager.cycleSpeed() },
+            onChangeSpeed = { playerManager.cycleSpeed() },
             onToggleLoop = { playerManager.toggleLoop() }
         )
 
@@ -233,7 +233,7 @@ fun AudioPlayerDetailScreen(
             // Reset button
             IconButton(onClick = { playerManager.seekTo(0L) }) {
                 Icon(
-                    imageVector = Icons.Default.RestartAlt,
+                    imageVector = Icons.Default.Refresh,
                     contentDescription = "Quay lại đầu",
                     tint = Color.Gray,
                     modifier = Modifier.size(28.dp)
@@ -250,7 +250,7 @@ fun AudioPlayerDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    imageVector = if (isPlaying) Icons.Default.Close else Icons.Default.PlayArrow,
                     contentDescription = null,
                     tint = Color.DarkGray,
                     modifier = Modifier.size(18.dp)
@@ -267,7 +267,7 @@ fun AudioPlayerDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
+                    imageVector = if (isMuted) Icons.Default.Close else Icons.Default.Notifications,
                     contentDescription = null,
                     tint = Color.DarkGray,
                     modifier = Modifier.size(18.dp)
@@ -284,7 +284,7 @@ fun AudioPlayerDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Fullscreen,
+                    imageVector = Icons.Default.Star,
                     contentDescription = "Mở rộng",
                     tint = Color.DarkGray,
                     modifier = Modifier.size(18.dp)
@@ -293,3 +293,5 @@ fun AudioPlayerDetailScreen(
         }
     }
 }
+
+

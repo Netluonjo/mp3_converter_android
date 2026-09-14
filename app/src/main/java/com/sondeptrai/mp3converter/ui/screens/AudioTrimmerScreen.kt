@@ -6,8 +6,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ContentCut
-import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -120,7 +120,7 @@ fun AudioTrimmerScreen(
                 },
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                Icon(Icons.Default.PlayCircle, contentDescription = null, tint = CoralRed)
+                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = CoralRed)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Nghe thử đoạn đã chọn", color = CoralRed, fontWeight = FontWeight.Bold)
             }
@@ -170,7 +170,7 @@ fun AudioTrimmerScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = CoralRed),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(Icons.Default.ContentCut, contentDescription = null)
+                Icon(Icons.Default.Edit, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Cắt và Lưu tệp mới", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
@@ -193,3 +193,5 @@ fun AudioTrimmerScreen(
         )
     }
 }
+
+

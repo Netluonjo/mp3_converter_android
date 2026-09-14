@@ -65,11 +65,11 @@ fun AudioToolsGridScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             val icon = when (tool) {
-                                AudioToolType.VIDEO_TO_AUDIO -> Icons.Default.Movie
-                                AudioToolType.TRIMMER -> Icons.Default.ContentCut
-                                AudioToolType.MERGER -> Icons.Default.CallMerge
-                                AudioToolType.VOLUME_BOOSTER -> Icons.Default.VolumeUp
-                                AudioToolType.FORMAT_CONVERTER -> Icons.Default.Sync
+                                AudioToolType.VIDEO_TO_AUDIO -> Icons.Default.PlayArrow
+                                AudioToolType.TRIMMER -> Icons.Default.Edit
+                                AudioToolType.MERGER -> Icons.Default.Add
+                                AudioToolType.VOLUME_BOOSTER -> Icons.Default.Notifications
+                                AudioToolType.FORMAT_CONVERTER -> Icons.Default.Refresh
                             }
                             Icon(icon, contentDescription = null, tint = tool.tintColor, modifier = Modifier.size(26.dp))
                         }
@@ -79,7 +79,7 @@ fun AudioToolsGridScreen(
                             Text(tool.subtitleVi, fontSize = 12.sp, color = Color.Gray, maxLines = 2)
                         }
 
-                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.LightGray)
+                        Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.LightGray)
                     }
                 }
             }
@@ -97,12 +97,12 @@ fun AudioToolsGridScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Icon(Icons.Default.Terminal, contentDescription = null, tint = Color.Green, modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.Build, contentDescription = null, tint = Color.Green, modifier = Modifier.size(32.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Kiến trúc FFmpeg-Kit Android", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         Text("Xem 5 chuỗi command-line mẫu đã được tối ưu", color = Color.Gray, fontSize = 12.sp)
                     }
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.Gray)
+                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.Gray)
                 }
             }
         }
@@ -127,3 +127,4 @@ fun AudioToolsGridScreen(
         )
     }
 }
+
