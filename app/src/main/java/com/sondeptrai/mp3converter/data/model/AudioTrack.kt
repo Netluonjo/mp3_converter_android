@@ -1,4 +1,4 @@
-﻿package com.sondeptrai.mp3converter.data.model
+package com.sondeptrai.mp3converter.data.model
 
 import android.net.Uri
 import java.util.UUID
@@ -62,16 +62,28 @@ data class AudioTrack(
             }
         }
 
-        val defaultSegments = listOf(
-            TranscriptSegment(timeMs = 0L, text = "Xin chào! Chào mừng bạn đến với Studio Âm Thanh."),
-            TranscriptSegment(timeMs = 3500L, text = "Đây là bản ghi âm mẫu chất lượng cao trên Android."),
-            TranscriptSegment(timeMs = 8000L, text = "Lời thoại đang được đồng bộ trực tiếp theo thời gian phát."),
-            TranscriptSegment(timeMs = 13000L, text = "Bạn có thể chạm vào từng câu để tua nhanh tới đoạn đó."),
-            TranscriptSegment(timeMs = 17500L, text = "Hỗ trợ cắt ghép, tăng âm lượng và xuất file MP3 chuyên nghiệp.")
+        fun generateDefaultSegments(title: String, durationMs: Long): List<TranscriptSegment> {
+            val dur = durationMs.coerceAtLeast(12000L)
+            val step = dur / 5
+            return listOf(
+                TranscriptSegment(timeMs = 0L, text = "🎵 [Dạo đầu] Khúc nhạc $title bắt đầu ngân vang"),
+                TranscriptSegment(timeMs = step, text = "✨ Từng nốt nhạc du dương hòa vào không gian sâu lắng"),
+                TranscriptSegment(timeMs = step * 2, text = "🔥 Điệp khúc bùng nổ, âm thanh stereo sống động và ấm áp"),
+                TranscriptSegment(timeMs = step * 3, text = "🎧 Lời ca êm dịu dẫn lối qua những giai điệu tuyệt vời"),
+                TranscriptSegment(timeMs = step * 4, text = "🎶 Giai điệu nhẹ dần kết thúc bản thu âm hoàn hảo")
+            )
+        }
+
+        val demoSegments = listOf(
+            TranscriptSegment(timeMs = 0L, text = "🎵 [Dạo đầu] Xin chào! Chào mừng bạn đến với Studio Âm Thanh."),
+            TranscriptSegment(timeMs = 3500L, text = "✨ Đây là bản ghi âm mẫu chất lượng cao trên Android."),
+            TranscriptSegment(timeMs = 8000L, text = "🔥 Lời bài hát và phụ đề được đồng bộ trực tiếp theo thời gian phát."),
+            TranscriptSegment(timeMs = 13000L, text = "🎧 Bạn có thể chạm vào từng câu hoặc kéo thanh tua để nghe lại tức thì."),
+            TranscriptSegment(timeMs = 17500L, text = "🎶 Hỗ trợ cắt ghép, chuyển đổi MP3 và xuất file âm thanh chuyên nghiệp.")
         )
 
         val demoTrack = AudioTrack(
-            title = "Ghi âm 1",
+            title = "Ghi âm mẫu 1",
             uri = Uri.EMPTY,
             filePath = "",
             durationMs = 21000L,
@@ -80,7 +92,7 @@ data class AudioTrack(
             bitrateKbps = 192,
             fileSizeBytes = 512000L,
             waveformSamples = placeholderSamples(65),
-            transcriptSegments = defaultSegments
+            transcriptSegments = demoSegments
         )
     }
 }

@@ -1,19 +1,16 @@
 ﻿package com.sondeptrai.mp3converter.ui.components
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sondeptrai.mp3converter.ui.theme.CoralRed
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AudioScrubberBar(
     currentPositionMs: Long,
@@ -21,76 +18,53 @@ fun AudioScrubberBar(
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val progress = if (durationMs > 0) (currentPositionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+    val totalDuration = durationMs.coerceAtLeast(1L)
+    var isUserDragging by remember { mutableStateOf(false) }
+    var dragProgress by remember { mutableFloatStateOf(0f) }
+
+    val actualProgress = (currentPositionMs.toFloat() / totalDuration).coerceIn(0f, 1f)
+    val displayProgress = if (isUserDragging) dragProgress else actualProgress
+    val displayPositionMs = if (isUserDragging) (dragProgress * totalDuration).toLong() else currentPositionMs
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 20.dp)
     ) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures { offset ->
-                        val ratio = (offset.x / size.width).coerceIn(0f, 1f)
-                        onSeek((ratio * durationMs).toLong())
-                    }
-                }
-                .pointerInput(Unit) {
-                    detectDragGestures { change, _ ->
-                        change.consume()
-                        val ratio = (change.position.x / size.width).coerceIn(0f, 1f)
-                        onSeek((ratio * durationMs).toLong())
-                    }
-                }
-        ) {
-            val width = size.width
-            val height = size.height
-            val centerY = height / 2f
-            val thumbX = progress * width
-
-            // Background track
-            drawLine(
-                color = Color(0xFFE5E5EA),
-                start = Offset(0f, centerY),
-                end = Offset(width, centerY),
-                strokeWidth = 6f
-            )
-
-            // Active track
-            drawLine(
-                color = CoralRed,
-                start = Offset(0f, centerY),
-                end = Offset(thumbX, centerY),
-                strokeWidth = 6f
-            )
-
-            // Thumb
-            drawCircle(
-                color = CoralRed,
-                radius = 16f,
-                center = Offset(thumbX, centerY)
-            )
-            drawCircle(
-                color = Color.White,
-                radius = 8f,
-                center = Offset(thumbX, centerY)
-            )
-        }
+        Slider(
+            value = displayProgress,
+            onValueChange = { newValue ->
+                isUserDragging = true
+                dragProgress = newValue
+            },
+            onValueChangeFinished = {
+                val targetMs = (dragProgress * totalDuration).toLong()
+                onSeek(targetMs)
+                isUserDragging = false
+            },
+            colors = SliderDefaults.colors(
+                thumbColor = CoralRed,
+                activeTrackColor = CoralRed,
+                inactiveTrackColor = Color(0xFFE5E5EA)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = formatTime(currentPositionMs),
+                text = formatTime(displayPositionMs),
                 fontSize = 13.sp,
-                color = Color.Gray
+                color = if (isUserDragging) CoralRed else Color.Gray,
+                fontWeight = if (isUserDragging) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
             )
             Text(
-                text = formatTime(durationMs),
+                text = formatTime(totalDuration),
                 fontSize = 13.sp,
                 color = Color.Gray
             )

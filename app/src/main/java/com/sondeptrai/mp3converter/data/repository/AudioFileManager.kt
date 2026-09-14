@@ -1,24 +1,20 @@
-﻿package com.sondeptrai.mp3converter.data.repository
+package com.sondeptrai.mp3converter.data.repository
 
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
-import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import com.sondeptrai.mp3converter.data.model.AudioFormat
 import com.sondeptrai.mp3converter.data.model.AudioTrack
+import com.sondeptrai.mp3converter.data.model.TranscriptSegment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
 
 class AudioFileManager(private val context: Context) {
 
@@ -50,16 +46,20 @@ class AudioFileManager(private val context: Context) {
                 retriever.release()
             }
 
+            val validDuration = if (durationMs > 0) durationMs else 20000L
+            val defaultSegs = AudioTrack.generateDefaultSegments(file.nameWithoutExtension, validDuration)
+
             tracks.add(
                 AudioTrack(
                     title = file.nameWithoutExtension,
                     uri = Uri.fromFile(file),
                     filePath = file.absolutePath,
-                    durationMs = durationMs,
+                    durationMs = validDuration,
                     format = format,
                     fileSizeBytes = file.length(),
                     createdAt = file.lastModified(),
-                    waveformSamples = AudioTrack.placeholderSamples(65)
+                    waveformSamples = AudioTrack.placeholderSamples(65),
+                    transcriptSegments = defaultSegs
                 )
             )
         }
