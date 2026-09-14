@@ -1,6 +1,8 @@
 package com.sondeptrai.mp3converter.data.model
 
 import android.net.Uri
+import com.sondeptrai.mp3converter.data.repository.SongLyricsHelper
+import java.io.File
 import java.util.UUID
 import kotlin.math.cos
 import kotlin.math.sin
@@ -62,32 +64,25 @@ data class AudioTrack(
             }
         }
 
-        fun generateDefaultSegments(title: String, durationMs: Long): List<TranscriptSegment> {
-            val dur = durationMs.coerceAtLeast(12000L)
-            val step = dur / 5
-            return listOf(
-                TranscriptSegment(timeMs = 0L, text = "🎵 [Dạo đầu] Khúc nhạc $title bắt đầu ngân vang"),
-                TranscriptSegment(timeMs = step, text = "✨ Từng nốt nhạc du dương hòa vào không gian sâu lắng"),
-                TranscriptSegment(timeMs = step * 2, text = "🔥 Điệp khúc bùng nổ, âm thanh stereo sống động và ấm áp"),
-                TranscriptSegment(timeMs = step * 3, text = "🎧 Lời ca êm dịu dẫn lối qua những giai điệu tuyệt vời"),
-                TranscriptSegment(timeMs = step * 4, text = "🎶 Giai điệu nhẹ dần kết thúc bản thu âm hoàn hảo")
-            )
+        fun generateDefaultSegments(title: String, durationMs: Long, file: File? = null): List<TranscriptSegment> {
+            return SongLyricsHelper.getLyricsForTrack(title, durationMs, file)
         }
 
         val demoSegments = listOf(
-            TranscriptSegment(timeMs = 0L, text = "🎵 [Dạo đầu] Xin chào! Chào mừng bạn đến với Studio Âm Thanh."),
-            TranscriptSegment(timeMs = 3500L, text = "✨ Đây là bản ghi âm mẫu chất lượng cao trên Android."),
-            TranscriptSegment(timeMs = 8000L, text = "🔥 Lời bài hát và phụ đề được đồng bộ trực tiếp theo thời gian phát."),
-            TranscriptSegment(timeMs = 13000L, text = "🎧 Bạn có thể chạm vào từng câu hoặc kéo thanh tua để nghe lại tức thì."),
-            TranscriptSegment(timeMs = 17500L, text = "🎶 Hỗ trợ cắt ghép, chuyển đổi MP3 và xuất file âm thanh chuyên nghiệp.")
+            TranscriptSegment(timeMs = 0L, text = "🎵 [Dạo đầu] Giai điệu mùa thu nhẹ nhàng buông xuống..."),
+            TranscriptSegment(timeMs = 3200L, text = "🍃 Từng hạt mưa rơi rớt bên hiên, góc phố vắng tanh"),
+            TranscriptSegment(timeMs = 7500L, text = "🌧️ Kỷ niệm xưa theo gió bay về trong màn đêm lạnh"),
+            TranscriptSegment(timeMs = 11500L, text = "💫 Nhớ ánh mắt dịu dàng và nụ cười ấm áp năm nào"),
+            TranscriptSegment(timeMs = 15000L, text = "🔥 [Điệp khúc] Người yêu hỡi dẫu xa xôi lòng anh không đổi"),
+            TranscriptSegment(timeMs = 18500L, text = "✨ Trọn một đời chỉ yêu riêng bóng hình em!")
         )
 
         val demoTrack = AudioTrack(
-            title = "Ghi âm mẫu 1",
+            title = "Bản tình ca mùa thu",
             uri = Uri.EMPTY,
             filePath = "",
             durationMs = 21000L,
-            format = AudioFormat.M4A,
+            format = AudioFormat.MP3,
             sampleRate = 44100,
             bitrateKbps = 192,
             fileSizeBytes = 512000L,

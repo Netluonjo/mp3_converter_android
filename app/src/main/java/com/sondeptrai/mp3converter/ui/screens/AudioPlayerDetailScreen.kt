@@ -20,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sondeptrai.mp3converter.data.model.TranscriptSegment
 import com.sondeptrai.mp3converter.data.repository.AudioFileManager
+import com.sondeptrai.mp3converter.data.repository.SongLyricsHelper
 import com.sondeptrai.mp3converter.engine.AudioPlayerManager
 import com.sondeptrai.mp3converter.ui.components.AudioControlButtons
 import com.sondeptrai.mp3converter.ui.components.AudioScrubberBar
@@ -37,6 +37,7 @@ import com.sondeptrai.mp3converter.ui.components.AudioWaveformVisualizer
 import com.sondeptrai.mp3converter.ui.theme.CoralRed
 import com.sondeptrai.mp3converter.ui.theme.PillSelectedDark
 import kotlinx.coroutines.launch
+import java.io.File
 
 @Composable
 fun AudioPlayerDetailScreen(
@@ -53,21 +54,22 @@ fun AudioPlayerDetailScreen(
     val isLooping by playerManager.isLooping.collectAsState()
     val isMuted by playerManager.isMuted.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 = Sóng âm & Lời trực tiếp, 1 = Toàn bộ lời thoại
+    var selectedTab by remember { mutableIntStateOf(0) } // 0 = Sóng âm & Lời trực tiếp, 1 = Toàn bộ lời bài hát
     var showMenu by remember { mutableStateOf(false) }
-    var showEditDialog by remember { mutableStateOf(false) }
-    var editTextValue by remember { mutableStateOf("") }
+    var showPasteLyricsDialog by remember { mutableStateOf(false) }
+    var pasteLyricsText by remember { mutableStateOf("") }
     var isTranscribing by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // Segments for lyrics
+    // Get current track segments or extract authentic song lyrics
     val segments = if (currentTrack.transcriptSegments.isNotEmpty()) {
         currentTrack.transcriptSegments
     } else {
         remember(currentTrack.title, durationMs) {
-            com.sondeptrai.mp3converter.data.model.AudioTrack.generateDefaultSegments(currentTrack.title, durationMs)
+            val f = if (currentTrack.filePath.isNotEmpty()) File(currentTrack.filePath) else null
+            SongLyricsHelper.getLyricsForTrack(currentTrack.title, durationMs, f)
         }
     }
 
@@ -126,6 +128,15 @@ fun AudioPlayerDetailScreen(
                     onDismissRequest = { showMenu = false }
                 ) {
                     DropdownMenuItem(
+                        text = { Text("Dán / Sửa lời bài hát") },
+                        onClick = {
+                            showMenu = false
+                            pasteLyricsText = segments.joinToString("\n") { it.text }
+                            showPasteLyricsDialog = true
+                        },
+                        leadingIcon = { Icon(Icons.Default.Edit, null) }
+                    )
+                    DropdownMenuItem(
                         text = { Text("Chia sẻ file") },
                         onClick = {
                             showMenu = false
@@ -134,16 +145,7 @@ fun AudioPlayerDetailScreen(
                         leadingIcon = { Icon(Icons.Default.Share, null) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Chỉnh sửa lời thoại") },
-                        onClick = {
-                            showMenu = false
-                            editTextValue = segments.joinToString("\n") { it.text }
-                            showEditDialog = true
-                        },
-                        leadingIcon = { Icon(Icons.Default.Edit, null) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Xóa bản ghi", color = CoralRed) },
+                        text = { Text("Xóa bài này", color = CoralRed) },
                         onClick = {
                             showMenu = false
                             fileManager.deleteTrack(currentTrack)
@@ -154,7 +156,7 @@ fun AudioPlayerDetailScreen(
             }
         }
 
-        // Mode Pill Switcher: [ Âm thanh ] [ Lời thoại (Toàn bộ) ]
+        // Mode Pill Switcher: [ Âm thanh & Lời ] [ Toàn bộ lời bài hát ]
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(24.dp))
@@ -186,7 +188,7 @@ fun AudioPlayerDetailScreen(
                 )
             }
 
-            // Tab 1: Toàn bộ Lời thoại
+            // Tab 1: Toàn bộ Lời bài hát
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
@@ -203,7 +205,7 @@ fun AudioPlayerDetailScreen(
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    text = "Toàn bộ lời",
+                    text = "Lời bài hát (Karaoke)",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (selectedTab == 1) Color.White else Color.Gray
@@ -211,7 +213,7 @@ fun AudioPlayerDetailScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Center Content Box
         Box(
@@ -230,14 +232,14 @@ fun AudioPlayerDetailScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(0.55f),
+                            .weight(0.52f),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9FB))
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(12.dp),
+                                .padding(10.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             AudioWaveformVisualizer(
@@ -253,8 +255,7 @@ fun AudioPlayerDetailScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(0.45f)
-                            .clickable { selectedTab = 1 },
+                            .weight(0.48f),
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F4F8)),
                         border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed.copy(alpha = 0.25f))
@@ -262,7 +263,7 @@ fun AudioPlayerDetailScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             // Header of Live Lyric Card
@@ -292,26 +293,45 @@ fun AudioPlayerDetailScreen(
 
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.clickable { selectedTab = 1 }
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    // Quick paste lyrics button
                                     Text(
-                                        text = "Toàn màn hình",
+                                        text = "Dán lời",
                                         fontSize = 11.sp,
-                                        color = Color.Gray,
-                                        fontWeight = FontWeight.SemiBold
+                                        color = CoralRed,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.clickable {
+                                            pasteLyricsText = segments.joinToString("\n") { it.text }
+                                            showPasteLyricsDialog = true
+                                        }
                                     )
-                                    Icon(
-                                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = null,
-                                        tint = Color.Gray,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.clickable { selectedTab = 1 }
+                                    ) {
+                                        Text(
+                                            text = "Mở rộng",
+                                            fontSize = 11.sp,
+                                            color = Color.Gray,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                            contentDescription = null,
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                             }
 
                             // Active Lyric Line (Highlighted in Real Time)
                             Column(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedTab = 1 },
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 currentSegment?.let { seg ->
@@ -361,7 +381,7 @@ fun AudioPlayerDetailScreen(
 
                             // Bottom Hint
                             Text(
-                                text = "💡 Chạm để mở toàn bộ lời thoại hoặc kéo thanh tua bên dưới",
+                                text = "💡 Lời bài hát khớp theo nhạc • Chạm để mở Karaoke toàn màn hình",
                                 fontSize = 11.sp,
                                 color = Color.DarkGray
                             )
@@ -378,7 +398,7 @@ fun AudioPlayerDetailScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(16.dp)
+                            .padding(14.dp)
                     ) {
                         // Header Bar inside Transcript Card
                         Row(
@@ -388,7 +408,7 @@ fun AudioPlayerDetailScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "LỜI THOẠI ĐỒNG BỘ",
+                                    text = "LỜI BÀI HÁT KARAOKE",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = CoralRed
@@ -396,7 +416,7 @@ fun AudioPlayerDetailScreen(
                                 if (isPlaying) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
-                                        text = "• Đang phát",
+                                        text = "• Đang hát",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = Color(0xFF34C759)
@@ -405,16 +425,29 @@ fun AudioPlayerDetailScreen(
                             }
 
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                // Paste / Edit Lyrics Button
+                                OutlinedButton(
+                                    onClick = {
+                                        pasteLyricsText = segments.joinToString("\n") { it.text }
+                                        showPasteLyricsDialog = true
+                                    },
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Dán lời bài hát", fontSize = 11.sp)
+                                }
+
                                 // AI Transcribe Button
                                 OutlinedButton(
                                     onClick = {
                                         isTranscribing = true
                                         coroutineScope.launch {
-                                            kotlinx.coroutines.delay(600)
-                                            val generated = com.sondeptrai.mp3converter.data.model.AudioTrack.generateDefaultSegments(
-                                                currentTrack.title,
-                                                durationMs
-                                            )
+                                            kotlinx.coroutines.delay(500)
+                                            val f = if (currentTrack.filePath.isNotEmpty()) File(currentTrack.filePath) else null
+                                            val generated = SongLyricsHelper.getLyricsForTrack(currentTrack.title, durationMs, f)
                                             playerManager.updateCurrentTrackTranscript(generated)
                                             isTranscribing = false
                                         }
@@ -426,27 +459,12 @@ fun AudioPlayerDetailScreen(
                                     if (isTranscribing) {
                                         CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = CoralRed)
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Đang tạo...", fontSize = 11.sp)
+                                        Text("...", fontSize = 11.sp)
                                     } else {
                                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(13.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Nhận diện AI", fontSize = 11.sp)
+                                        Text("Nhận diện", fontSize = 11.sp)
                                     }
-                                }
-
-                                // Edit Button
-                                OutlinedButton(
-                                    onClick = {
-                                        editTextValue = segments.joinToString("\n") { it.text }
-                                        showEditDialog = true
-                                    },
-                                    modifier = Modifier.height(32.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(13.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Sửa", fontSize = 11.sp)
                                 }
                             }
                         }
@@ -534,7 +552,7 @@ fun AudioPlayerDetailScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Scrubber Bar (Material 3 Slider with smooth dragging)
+        // Scrubber Bar
         AudioScrubberBar(
             currentPositionMs = currentPositionMs,
             durationMs = durationMs,
@@ -566,7 +584,6 @@ fun AudioPlayerDetailScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Reset button
             IconButton(onClick = { playerManager.seekTo(0L) }) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
@@ -576,7 +593,6 @@ fun AudioPlayerDetailScreen(
                 )
             }
 
-            // Secondary Play button
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -593,7 +609,6 @@ fun AudioPlayerDetailScreen(
                 )
             }
 
-            // Mute button
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -610,7 +625,6 @@ fun AudioPlayerDetailScreen(
                 )
             }
 
-            // Expand to tools button
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -629,13 +643,13 @@ fun AudioPlayerDetailScreen(
         }
     }
 
-    // Edit Transcript Dialog
-    if (showEditDialog) {
+    // Paste / Edit Lyrics Dialog
+    if (showPasteLyricsDialog) {
         AlertDialog(
-            onDismissRequest = { showEditDialog = false },
+            onDismissRequest = { showPasteLyricsDialog = false },
             title = {
                 Text(
-                    text = "Chỉnh sửa lời thoại",
+                    text = "Dán lời bài hát (Lyrics / LRC)",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp
                 )
@@ -643,18 +657,18 @@ fun AudioPlayerDetailScreen(
             text = {
                 Column {
                     Text(
-                        text = "Nhập mỗi câu lời thoại trên một dòng. Ứng dụng sẽ tự động chia mốc thời gian phát:",
+                        text = "Bạn có thể dán lời bài hát dạng văn bản thường hoặc định dạng LRC [00:15] từ Zing MP3 / Spotify. Ứng dụng sẽ tự động đồng bộ theo nhạc:",
                         fontSize = 13.sp,
                         color = Color.DarkGray
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
-                        value = editTextValue,
-                        onValueChange = { editTextValue = it },
+                        value = pasteLyricsText,
+                        onValueChange = { pasteLyricsText = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp),
-                        placeholder = { Text("Nhập từng dòng lời thoại...") },
+                            .height(220.dp),
+                        placeholder = { Text("Dán lời bài hát vào đây...") },
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
@@ -662,24 +676,19 @@ fun AudioPlayerDetailScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val lines = editTextValue.lines().filter { it.isNotBlank() }
-                        if (lines.isNotEmpty()) {
-                            val dur = durationMs.coerceAtLeast(10000L)
-                            val step = dur / lines.size
-                            val newSegments = lines.mapIndexed { idx, text ->
-                                TranscriptSegment(timeMs = idx * step, text = text.trim())
-                            }
-                            playerManager.updateCurrentTrackTranscript(newSegments)
+                        val updated = fileManager.saveCustomLyrics(currentTrack, pasteLyricsText)
+                        if (updated.isNotEmpty()) {
+                            playerManager.updateCurrentTrackTranscript(updated)
                         }
-                        showEditDialog = false
+                        showPasteLyricsDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = CoralRed)
                 ) {
-                    Text("Lưu thay đổi")
+                    Text("Lưu lời bài hát")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) {
+                TextButton(onClick = { showPasteLyricsDialog = false }) {
                     Text("Hủy")
                 }
             }
