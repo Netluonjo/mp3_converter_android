@@ -60,8 +60,12 @@ fun AudioPlayerDetailScreen(
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // Real segments from current track
-    val segments = currentTrack.transcriptSegments
+    // Real segments from current track (filtered to eliminate any "null" text)
+    val rawSegments = currentTrack.transcriptSegments
+    val segments = remember(rawSegments, currentTrack.title) {
+        val filtered = rawSegments.filter { it.text.isNotBlank() && !it.text.equals("null", ignoreCase = true) }
+        if (filtered.isNotEmpty()) filtered else SongLyricsHelper.getLyricsForTrack(currentTrack.title, durationMs, null)
+    }
 
     // Calculate currently active line being sung
     val activeIndex = segments.indexOfLast { currentPositionMs >= it.timeMs }

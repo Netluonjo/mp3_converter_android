@@ -136,17 +136,28 @@ class AudioPlayerManager(private val context: Context) {
     private fun fetchOnlineLyricsIfNeeded(track: AudioTrack) {
         val audioFile = if (track.filePath.isNotEmpty()) File(track.filePath) else null
         val cachedLrc = audioFile?.let { File(it.parentFile, it.nameWithoutExtension + ".lrc") }
-        if (cachedLrc != null && cachedLrc.exists() && cachedLrc.length() > 0) return
+        if (cachedLrc != null && cachedLrc.exists() && cachedLrc.length() > 0) {
+            val content = cachedLrc.readText().trim()
+            if (!content.equals("null", ignoreCase = true) && content.isNotEmpty()) {
+                return
+            } else {
+                try { cachedLrc.delete() } catch (_: Exception) {}
+            }
+        }
 
         lyricsJob?.cancel()
         lyricsJob = scope.launch {
             _isLoadingLyrics.value = true
             val online = SongLyricsHelper.fetchOnlineLyrics(track.title, track.durationMs)
-            if (online != null && online.isNotEmpty()) {
-                _currentTrack.value = _currentTrack.value.copy(transcriptSegments = online)
+            val valid = online?.filter { !it.text.equals("null", ignoreCase = true) && it.text.isNotBlank() }
+            if (!valid.isNullOrEmpty()) {
+                _currentTrack.value = _currentTrack.value.copy(transcriptSegments = valid)
                 if (audioFile != null && audioFile.exists()) {
-                    SongLyricsHelper.saveLrcFile(audioFile, online)
+                    SongLyricsHelper.saveLrcFile(audioFile, valid)
                 }
+            } else {
+                val fallback = SongLyricsHelper.getLyricsForTrack(track.title, track.durationMs, audioFile)
+                _currentTrack.value = _currentTrack.value.copy(transcriptSegments = fallback)
             }
             _isLoadingLyrics.value = false
         }
@@ -158,11 +169,15 @@ class AudioPlayerManager(private val context: Context) {
         lyricsJob = scope.launch {
             _isLoadingLyrics.value = true
             val online = SongLyricsHelper.fetchOnlineLyrics(customTitle, _durationMs.value)
-            if (online != null && online.isNotEmpty()) {
-                _currentTrack.value = _currentTrack.value.copy(transcriptSegments = online)
+            val valid = online?.filter { !it.text.equals("null", ignoreCase = true) && it.text.isNotBlank() }
+            if (!valid.isNullOrEmpty()) {
+                _currentTrack.value = _currentTrack.value.copy(transcriptSegments = valid)
                 if (track.filePath.isNotEmpty()) {
-                    SongLyricsHelper.saveLrcFile(File(track.filePath), online)
+                    SongLyricsHelper.saveLrcFile(File(track.filePath), valid)
                 }
+            } else {
+                val fallback = SongLyricsHelper.getLyricsForTrack(customTitle, _durationMs.value, null)
+                _currentTrack.value = _currentTrack.value.copy(transcriptSegments = fallback)
             }
             _isLoadingLyrics.value = false
         }
