@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sondeptrai.mp3converter.data.model.TranscriptSegment
 import com.sondeptrai.mp3converter.data.repository.AudioFileManager
+import com.sondeptrai.mp3converter.data.repository.SongLyricsHelper
 import com.sondeptrai.mp3converter.engine.AudioPlayerManager
 import com.sondeptrai.mp3converter.ui.components.AudioControlButtons
 import com.sondeptrai.mp3converter.ui.components.AudioScrubberBar

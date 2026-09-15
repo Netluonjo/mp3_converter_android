@@ -74,10 +74,10 @@ object SongLyricsHelper {
     fun normalizeForSearch(str: String): String {
         var result = str.replace("đ", "d").replace("Đ", "d")
         result = Normalizer.normalize(result, Normalizer.Form.NFD)
-            .replace("\p{InCombiningDiacriticalMarks}+".toRegex(), "")
+            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
             .lowercase()
-            .replace("[^a-z0-9\s]".toRegex(), " ")
-            .replace("\s+".toRegex(), " ")
+            .replace("[^a-z0-9\\s]".toRegex(), " ")
+            .replace("\\s+".toRegex(), " ")
         return result.trim()
     }
 
@@ -216,7 +216,7 @@ object SongLyricsHelper {
                     }
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {}
 
         // Fallback to offline store
         val fallback = getLyricsForTrack(title, durationMs, null)
@@ -225,12 +225,12 @@ object SongLyricsHelper {
 
     fun cleanSongTitle(title: String): String {
         var str = title
-            .replace(Regex("(?i)\.(mp3|m4a|wav|aac|flac|ogg)"), "")
-            .replace(Regex("(?i)_(Trimmed|Boosted|Converted)"), "")
-            .replace(Regex("(?i)(official|music|remix|lyric|lyrics|hq|hd)"), "")
-            .replace(Regex("[_\-\(\[\)\]]"), " ")
+            .replace(Regex("""(?i)\.(mp3|m4a|wav|aac|flac|ogg)"""), "")
+            .replace(Regex("""(?i)_(Trimmed|Boosted|Converted)"""), "")
+            .replace(Regex("""(?i)(official|music|remix|lyric|lyrics|hq|hd)"""), "")
+            .replace(Regex("""[_\-\(\[\]\)]"""), " ")
             .trim()
-        val prefixPattern = Regex("(?i)^(tìm\s*kiếm|tìm\s*lời\s*bài\s*hát|tìm\s*bài\s*hát|tìm|lời\s*bài\s*hát|bài\s*hát|nhạc|ca\s*khúc|bài)\s+")
+        val prefixPattern = Regex("""(?i)^(tìm\s*kiếm|tìm\s*lời\s*bài\s*hát|tìm\s*bài\s*hát|tìm|lời\s*bài\s*hát|bài\s*hát|nhạc|ca\s*khúc|bài)\s+""")
         str = str.replace(prefixPattern, "").trim()
         return str
     }
@@ -249,7 +249,7 @@ object SongLyricsHelper {
                     if (valid.isNotEmpty()) return valid
                 } else {
                     // Delete corrupted .lrc file
-                    try { lrcFile.delete() } catch (_: Exception) {}
+                    try { lrcFile.delete() } catch (e: Exception) {}
                 }
             }
 
@@ -271,7 +271,7 @@ object SongLyricsHelper {
                     if (valid.isNotEmpty()) return valid
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {}
         return null
     }
 
@@ -310,7 +310,7 @@ object SongLyricsHelper {
                     }
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {}
         return null
     }
 
@@ -323,8 +323,7 @@ object SongLyricsHelper {
 
         try {
             val lrcFile = File(audioFile.parentFile, audioFile.nameWithoutExtension + ".lrc")
-            val lrcContent = validSegments.joinToString("
-") {
+            val lrcContent = validSegments.joinToString("\n") {
                 val totalSec = it.timeMs / 1000
                 val min = totalSec / 60
                 val sec = totalSec % 60
@@ -332,13 +331,13 @@ object SongLyricsHelper {
                 "[%02d:%02d.%02d] %s".format(min, sec, ms, it.text)
             }
             lrcFile.writeText(lrcContent, Charsets.UTF_8)
-        } catch (_: Exception) {}
+        } catch (e: Exception) {}
     }
 
     /**
      * Immediate offline lyrics lookup: local file -> built-in popular songs -> fallback.
      */
-    fun getLyricsForTrack(title: String, durationMs: Long, audioFile: File?): List<TranscriptSegment> {
+    fun getLyricsForTrack(title: String, durationMs: Long, audioFile: File? = null): List<TranscriptSegment> {
         if (audioFile != null && audioFile.exists()) {
             val embedded = extractEmbeddedLyrics(audioFile)
             if (!embedded.isNullOrEmpty()) return embedded
@@ -348,7 +347,6 @@ object SongLyricsHelper {
         val norm = normalizeForSearch(cleanTitle)
 
         when {
-            // Xương Rồng (Dangrangto)
             norm.contains("xuong rong") || norm.contains("dangrangto") || cleanTitle.contains("xương rồng") -> {
                 return parseLrcOrText(xuongRongLRC, durationMs)
             }
@@ -389,7 +387,7 @@ object SongLyricsHelper {
                     TranscriptSegment(timeMs = 29000L, text = "🔥 [Điệp khúc] Giờ thì cắt đôi nỗi sầu chia đôi cuộc tình"),
                     TranscriptSegment(timeMs = 34000L, text = "Một nửa gửi gió mây, một nửa chôn sâu đáy lòng"),
                     TranscriptSegment(timeMs = 39000L, text = "Từ nay không còn vương vấn bóng hình ai"),
-                    TranscriptSegment(timeMs = 44000L, text = "🎶 Nhạc dạo kết thúc khúc tình sầu vỡ tan.")
+                    TranscriptSegment(timeMs = 44000L, text = "🎶 Nhạc dạo kết khúc tình sầu vỡ tan.")
                 )
             }
             norm.contains("ben tren tang lau") || cleanTitle.contains("bên trên tầng lầu") -> {
