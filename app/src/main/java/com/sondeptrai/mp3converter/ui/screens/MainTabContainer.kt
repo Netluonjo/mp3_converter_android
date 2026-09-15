@@ -42,6 +42,10 @@ fun MainTabContainer(
             AudioEffectsScreen(track = currentTrack, fileManager = fileManager, onBack = { activeTool = null })
             return
         }
+        AudioToolType.WIFI_TRANSFER -> {
+            WifiTransferScreen(fileManager = fileManager, onBack = { activeTool = null })
+            return
+        }
         AudioToolType.FORMAT_CONVERTER -> {
             showExportDialog = true
             activeTool = null

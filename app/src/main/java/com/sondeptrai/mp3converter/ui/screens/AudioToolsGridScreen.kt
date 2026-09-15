@@ -70,6 +70,7 @@ fun AudioToolsGridScreen(
                                 AudioToolType.MERGER -> Icons.Default.Add
                                 AudioToolType.VOLUME_BOOSTER -> Icons.Default.Notifications
                                 AudioToolType.FORMAT_CONVERTER -> Icons.Default.Refresh
+                                AudioToolType.WIFI_TRANSFER -> Icons.Default.Share
                             }
                             Icon(icon, contentDescription = null, tint = tool.tintColor, modifier = Modifier.size(26.dp))
                         }

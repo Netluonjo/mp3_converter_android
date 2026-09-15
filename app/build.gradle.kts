@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.kotlinx.coroutines.android)
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 
     // AndroidX Media3 (ExoPlayer + Transformer) for high-performance audio playback & editing
     implementation("androidx.media3:media3-exoplayer:1.4.1")

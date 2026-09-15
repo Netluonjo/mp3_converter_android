@@ -34,6 +34,7 @@ fun AudioLibraryScreen(
     fileManager: AudioFileManager,
     playerManager: AudioPlayerManager,
     onSelectTrackToPlay: (AudioTrack) -> Unit,
+    onNavigateToWifiTransfer: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val savedTracks by fileManager.savedTracks.collectAsState()

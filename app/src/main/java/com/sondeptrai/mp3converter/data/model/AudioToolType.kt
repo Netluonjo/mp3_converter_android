@@ -1,4 +1,4 @@
-﻿package com.sondeptrai.mp3converter.data.model
+package com.sondeptrai.mp3converter.data.model
 
 import androidx.compose.ui.graphics.Color
 
@@ -37,5 +37,11 @@ enum class AudioToolType(
         "Chuyển đổi MP3, M4A, WAV, AAC, FLAC",
         "sync",
         Color(0xFF2196F3)
+    ),
+    WIFI_TRANSFER(
+        "Chuyển nhạc Wi-Fi",
+        "Truyền file 2 chiều giữa Máy tính và Điện thoại",
+        "wifi",
+        Color(0xFF00BCD4)
     )
 }
