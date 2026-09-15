@@ -147,18 +147,28 @@ fun WifiTransferScreen(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF101B15))
                                 .border(1.dp, Color(0xFF388E3C), RoundedCornerShape(12.dp))
-                                .padding(vertical = 14.dp, horizontal = 16.dp),
+                                .padding(vertical = 14.dp, horizontal = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = serverUrl ?: "",
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
+                                fontSize = 16.sp,
                                 color = Color(0xFF69F0AE),
-                                textAlign = TextAlign.Center
+                                textAlign = TextAlign.Center,
+                                maxLines = 1
                             )
                         }
+
+                        // Important HTTP hint
+                        Text(
+                            text = "⚠️ Lưu ý: Bắt buộc gõ đầy đủ http:// ở đầu (không dùng https://)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFFFB74D),
+                            textAlign = TextAlign.Center
+                        )
 
                         // Copy & Share buttons
                         Row(
