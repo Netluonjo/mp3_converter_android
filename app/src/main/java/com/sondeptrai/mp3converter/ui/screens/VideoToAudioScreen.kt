@@ -1,4 +1,4 @@
-﻿package com.sondeptrai.mp3converter.ui.screens
+package com.sondeptrai.mp3converter.ui.screens
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,6 +24,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.text.style.TextAlign
 import com.sondeptrai.mp3converter.data.model.AudioBitrate
 import com.sondeptrai.mp3converter.data.model.AudioFormat
 import com.sondeptrai.mp3converter.data.repository.AudioFileManager
@@ -49,6 +51,7 @@ fun VideoToAudioScreen(
     var selectedFormat by remember { mutableStateOf(AudioFormat.MP3) }
     var selectedBitrate by remember { mutableStateOf(AudioBitrate.KBPS_320) }
     var isProcessing by remember { mutableStateOf(false) }
+    var extractionProgress by remember { mutableFloatStateOf(0f) }
     var showSuccessDialog by remember { mutableStateOf(false) }
 
     val videoPickerLauncher = rememberLauncherForActivityResult(
@@ -212,12 +215,15 @@ fun VideoToAudioScreen(
                                 FileOutputStream(tempVideo).use { output -> input.copyTo(output) }
                             }
                             val outputFile = fileManager.generateOutputPath(videoName, selectedFormat)
+                            extractionProgress = 0f
                             AudioProcessingEngine.extractAudioFromVideo(
                                 videoFile = tempVideo,
                                 outputAudioFile = outputFile,
                                 format = selectedFormat,
-                                bitrateKbps = selectedBitrate.kbps
+                                bitrateKbps = selectedBitrate.kbps,
+                                onProgress = { p -> extractionProgress = p }
                             )
+                            extractionProgress = 1f
                             fileManager.reloadLibrary()
                             showSuccessDialog = true
                         } finally {
@@ -238,6 +244,56 @@ fun VideoToAudioScreen(
                     Icon(Icons.Default.PlayArrow, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Bắt đầu trích xuất âm thanh", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            }
+        }
+    }
+
+        if (isProcessing) {
+        Dialog(onDismissRequest = {}) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
+                        CircularProgressIndicator(
+                            progress = { extractionProgress },
+                            modifier = Modifier.fillMaxSize(),
+                            color = CoralRed,
+                            trackColor = Color(0xFFE5E5EA),
+                            strokeWidth = 10.dp
+                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = CoralRed,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Text(
+                                text = "${(extractionProgress * 100).toInt()}%",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 24.sp
+                            )
+                        }
+                    }
+                    Text(
+                        "Äang bĂ³c tĂ¡ch Ă¢m thanh",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Text(
+                        "Äang trĂ­ch xuáº¥t dáº£i Ă¢m thanh sang Ä‘á»‹nh dáº¡ng " + selectedFormat.displayName + "...",
+                        fontSize = 13.sp,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }

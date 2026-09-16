@@ -19,7 +19,8 @@ object AudioProcessingEngine {
         videoFile: File,
         outputAudioFile: File,
         format: AudioFormat = AudioFormat.MP3,
-        bitrateKbps: Int = 320
+        bitrateKbps: Int = 320,
+        onProgress: (Float) -> Unit = {}
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
             outputAudioFile.parentFile?.mkdirs()
@@ -49,6 +50,9 @@ object AudioProcessingEngine {
                 } else 1024 * 256
                 val buffer = ByteBuffer.allocate(maxBufferSize)
                 val bufferInfo = MediaCodec.BufferInfo()
+                val totalDurationUs = if (audioFormat.containsKey(MediaFormat.KEY_DURATION)) {
+                    audioFormat.getLong(MediaFormat.KEY_DURATION)
+                } else 10_000_000L
 
                 while (true) {
                     val sampleSize = extractor.readSampleData(buffer, 0)
@@ -58,6 +62,10 @@ object AudioProcessingEngine {
                     bufferInfo.presentationTimeUs = extractor.sampleTime
                     bufferInfo.flags = extractor.sampleFlags
                     muxer.writeSampleData(muxerTrackIndex, buffer, bufferInfo)
+                    if (totalDurationUs > 0) {
+                        val p = (bufferInfo.presentationTimeUs.toFloat() / totalDurationUs).coerceIn(0f, 1f)
+                        onProgress(p)
+                    }
                     extractor.advance()
                 }
 
@@ -122,6 +130,9 @@ object AudioProcessingEngine {
                 } else 1024 * 256
                 val buffer = ByteBuffer.allocate(maxBufferSize)
                 val bufferInfo = MediaCodec.BufferInfo()
+                val totalDurationUs = if (audioFormat.containsKey(MediaFormat.KEY_DURATION)) {
+                    audioFormat.getLong(MediaFormat.KEY_DURATION)
+                } else 10_000_000L
 
                 while (true) {
                     val sampleTime = extractor.sampleTime
@@ -134,6 +145,10 @@ object AudioProcessingEngine {
                     bufferInfo.presentationTimeUs = sampleTime - startUs
                     bufferInfo.flags = extractor.sampleFlags
                     muxer.writeSampleData(muxerTrackIndex, buffer, bufferInfo)
+                    if (totalDurationUs > 0) {
+                        val p = (bufferInfo.presentationTimeUs.toFloat() / totalDurationUs).coerceIn(0f, 1f)
+                        onProgress(p)
+                    }
                     extractor.advance()
                 }
 
