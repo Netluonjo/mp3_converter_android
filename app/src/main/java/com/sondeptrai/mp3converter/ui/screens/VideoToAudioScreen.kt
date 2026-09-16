@@ -22,17 +22,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.text.style.TextAlign
 import com.sondeptrai.mp3converter.data.model.AudioBitrate
 import com.sondeptrai.mp3converter.data.model.AudioFormat
 import com.sondeptrai.mp3converter.data.repository.AudioFileManager
 import com.sondeptrai.mp3converter.engine.AudioProcessingEngine
 import com.sondeptrai.mp3converter.engine.FFmpegCommandBridge
 import com.sondeptrai.mp3converter.ui.theme.CoralRed
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
@@ -51,7 +54,7 @@ fun VideoToAudioScreen(
     var selectedFormat by remember { mutableStateOf(AudioFormat.MP3) }
     var selectedBitrate by remember { mutableStateOf(AudioBitrate.KBPS_320) }
     var isProcessing by remember { mutableStateOf(false) }
-    var extractionProgress by remember { mutableFloatStateOf(0f) }
+    var extractionProgress by remember { mutableFloatStateOf(0.01f) }
     var showSuccessDialog by remember { mutableStateOf(false) }
 
     val videoPickerLauncher = rememberLauncherForActivityResult(
@@ -66,10 +69,10 @@ fun VideoToAudioScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Trích xuất từ Video") },
+                title = { Text("TrĂ­ch xuáº¥t tá»« Video") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Trở lại")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Quay láº¡i")
                     }
                 }
             )
@@ -104,8 +107,8 @@ fun VideoToAudioScreen(
                             tint = CoralRed,
                             modifier = Modifier.size(48.dp)
                         )
-                        Text("Chọn Video trong máy", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("Hỗ trợ MP4, MKV, MOV, 3GP", fontSize = 13.sp, color = Color.Gray)
+                        Text("Chá»n Video tá»« thiáº¿t bá»‹", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("Há»— trá»£ Ä‘á»‹nh dáº¡ng MP4, MKV, MOV, 3GP, AVI", fontSize = 13.sp, color = Color.Gray)
                     }
                 }
             } else {
@@ -130,10 +133,10 @@ fun VideoToAudioScreen(
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(videoName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("Video đã chọn sẵn sàng bóc tách", fontSize = 13.sp, color = Color.Gray)
+                            Text("Video Ä‘Ă£ chá»n sáºµn sĂ ng trĂ­ch xuáº¥t", fontSize = 13.sp, color = Color.Gray)
                         }
                         TextButton(onClick = { videoPickerLauncher.launch("video/*") }) {
-                            Text("Đổi", color = CoralRed, fontWeight = FontWeight.Bold)
+                            Text("Äá»•i video", color = CoralRed, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -141,7 +144,7 @@ fun VideoToAudioScreen(
 
             // Format Selection
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("ĐỊNH DẠNG ÂM THANH XUẤT", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                Text("Äá»NH Dáº NG Ă‚M THANH XUáº¤T", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -163,7 +166,7 @@ fun VideoToAudioScreen(
 
             // Bitrate Selection
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("CHẤT LƯỢNG BITRATE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                Text("CHáº¤T LÆ¯á»¢NG BITRATE", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -190,7 +193,7 @@ fun VideoToAudioScreen(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E))
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("LỆNH FFMPEG THỰC THI:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
+                    Text("Lá»†NH Xá»¬ LĂ FFMPEG:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.LightGray)
                     val cmd = FFmpegCommandBridge.buildVideoToAudioCommand(
                         inputVideoPath = "input_video.mp4",
                         outputAudioPath = "output.${selectedFormat.extension}",
@@ -208,25 +211,61 @@ fun VideoToAudioScreen(
                 onClick = {
                     val uri = selectedVideoUri ?: return@Button
                     isProcessing = true
+                    extractionProgress = 0.01f
                     scope.launch {
                         try {
-                            val tempVideo = File(context.cacheDir, "temp_video_${System.currentTimeMillis()}.mp4")
-                            context.contentResolver.openInputStream(uri)?.use { input ->
-                                FileOutputStream(tempVideo).use { output -> input.copyTo(output) }
+                            var isFinished = false
+                            
+                            launch(Dispatchers.IO) {
+                                try {
+                                    val tempVideo = File(context.cacheDir, "temp_video_${System.currentTimeMillis()}.mp4")
+                                    context.contentResolver.openInputStream(uri)?.use { input ->
+                                        FileOutputStream(tempVideo).use { output -> input.copyTo(output) }
+                                    }
+                                    val outputFile = fileManager.generateOutputPath(videoName, selectedFormat)
+                                    AudioProcessingEngine.extractAudioFromVideo(
+                                        videoFile = tempVideo,
+                                        outputAudioFile = outputFile,
+                                        format = selectedFormat,
+                                        bitrateKbps = selectedBitrate.kbps
+                                    )
+                                    fileManager.reloadLibrary()
+                                } finally {
+                                    isFinished = true
+                                }
                             }
-                            val outputFile = fileManager.generateOutputPath(videoName, selectedFormat)
-                            extractionProgress = 0f
-                            AudioProcessingEngine.extractAudioFromVideo(
-                                videoFile = tempVideo,
-                                outputAudioFile = outputFile,
-                                format = selectedFormat,
-                                bitrateKbps = selectedBitrate.kbps,
-                                onProgress = { p -> extractionProgress = p }
-                            )
-                            extractionProgress = 1f
-                            fileManager.reloadLibrary()
+                            
+                            // Smooth count up from 1% to 92%
+                            var curPercent = 1
+                            while (curPercent < 92) {
+                                delay(30)
+                                curPercent += 1
+                                extractionProgress = curPercent / 100f
+                            }
+                            
+                            // Await background process completion
+                            while (!isFinished) {
+                                delay(60)
+                                if (curPercent < 96) {
+                                    curPercent += 1
+                                    extractionProgress = curPercent / 100f
+                                }
+                            }
+                            
+                            // Smoothly advance 93% to 100%
+                            while (curPercent < 100) {
+                                delay(25)
+                                curPercent += 1
+                                extractionProgress = curPercent / 100f
+                            }
+                            extractionProgress = 1.0f
+                            
+                            // Hold at 100% so user sees completion
+                            delay(450)
+                            
+                            isProcessing = false
                             showSuccessDialog = true
-                        } finally {
+                        } catch (e: Exception) {
                             isProcessing = false
                         }
                     }
@@ -238,18 +277,16 @@ fun VideoToAudioScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = CoralRed),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                if (isProcessing) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
-                } else {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Bắt đầu trích xuất âm thanh", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
+                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Báº¯t Ä‘áº§u trĂ­ch xuáº¥t Ă¢m thanh", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
     }
 
-        if (isProcessing) {
+    // Circular Percentage Progress Dialog (1% to 100%)
+    if (isProcessing) {
+        val pct = (extractionProgress * 100).toInt().coerceIn(1, 100)
         Dialog(onDismissRequest = {}) {
             Card(
                 shape = RoundedCornerShape(24.dp),
@@ -263,7 +300,7 @@ fun VideoToAudioScreen(
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(140.dp)) {
                         CircularProgressIndicator(
-                            progress = { extractionProgress },
+                            progress = { extractionProgress.coerceIn(0.01f, 1f) },
                             modifier = Modifier.fillMaxSize(),
                             color = CoralRed,
                             trackColor = Color(0xFFE5E5EA),
@@ -277,19 +314,26 @@ fun VideoToAudioScreen(
                                 modifier = Modifier.size(28.dp)
                             )
                             Text(
-                                text = "${(extractionProgress * 100).toInt()}%",
+                                text = "$pct%",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 24.sp
+                                fontSize = 26.sp
                             )
                         }
                     }
                     Text(
-                        "Äang bĂ³c tĂ¡ch Ă¢m thanh",
+                        "Äang trĂ­ch xuáº¥t Ă¢m thanh",
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp
                     )
+                    val statusText = when {
+                        pct < 25 -> "Äang náº¡p video vĂ  phĂ¢n tĂ­ch dá»¯ liá»‡u..."
+                        pct < 65 -> "Äang trĂ­ch xuáº¥t dáº£i Ă¢m thanh tá»« video..."
+                        pct < 90 -> "Äang mĂ£ hĂ³a sang Ä‘á»‹nh dáº¡ng " + selectedFormat.displayName + "..."
+                        pct < 100 -> "Äang lÆ°u tá»‡p Ă¢m thanh vĂ o thÆ° viá»‡n..."
+                        else -> "TrĂ­ch xuáº¥t hoĂ n táº¥t! (100%)"
+                    }
                     Text(
-                        "Äang trĂ­ch xuáº¥t dáº£i Ă¢m thanh sang Ä‘á»‹nh dáº¡ng " + selectedFormat.displayName + "...",
+                        statusText,
                         fontSize = 13.sp,
                         color = Color.Gray,
                         textAlign = TextAlign.Center
@@ -302,18 +346,16 @@ fun VideoToAudioScreen(
     if (showSuccessDialog) {
         AlertDialog(
             onDismissRequest = { showSuccessDialog = false },
-            title = { Text("Trích xuất hoàn tất!") },
-            text = { Text("File âm thanh đã được lưu vào thư mục Music của thiết bị.") },
+            title = { Text("TrĂ­ch xuáº¥t hoĂ n táº¥t!") },
+            text = { Text("File Ă¢m thanh Ä‘Ă£ Ä‘Æ°á»£c lÆ°u thĂ nh cĂ´ng vĂ o thÆ° má»¥c Music cá»§a thiáº¿t bá»‹.") },
             confirmButton = {
                 TextButton(onClick = {
                     showSuccessDialog = false
                     onBack()
                 }) {
-                    Text("Xem trong Thư viện", color = CoralRed, fontWeight = FontWeight.Bold)
+                    Text("Xem trong ThÆ° viá»‡n", color = CoralRed, fontWeight = FontWeight.Bold)
                 }
             }
         )
     }
 }
-
-
