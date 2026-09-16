@@ -130,9 +130,6 @@ object AudioProcessingEngine {
                 } else 1024 * 256
                 val buffer = ByteBuffer.allocate(maxBufferSize)
                 val bufferInfo = MediaCodec.BufferInfo()
-                val totalDurationUs = if (audioFormat.containsKey(MediaFormat.KEY_DURATION)) {
-                    audioFormat.getLong(MediaFormat.KEY_DURATION)
-                } else 10_000_000L
 
                 while (true) {
                     val sampleTime = extractor.sampleTime
@@ -145,10 +142,6 @@ object AudioProcessingEngine {
                     bufferInfo.presentationTimeUs = sampleTime - startUs
                     bufferInfo.flags = extractor.sampleFlags
                     muxer.writeSampleData(muxerTrackIndex, buffer, bufferInfo)
-                    if (totalDurationUs > 0) {
-                        val p = (bufferInfo.presentationTimeUs.toFloat() / totalDurationUs).coerceIn(0f, 1f)
-                        onProgress(p)
-                    }
                     extractor.advance()
                 }
 
